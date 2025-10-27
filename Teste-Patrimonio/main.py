@@ -1,6 +1,7 @@
 # CÓDIGO FINAL PARA main.py
 import sys
 import os
+from pathlib import Path
 from PySide6.QtWidgets import QApplication, QPushButton, QMessageBox, QLineEdit, QStackedWidget, QLabel
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import QFile, QTimer, QDateTime
@@ -42,6 +43,17 @@ def load_ui(file_name: str):
     if not widget:
         raise RuntimeError(f"Falha ao carregar {ui_file_path}")
     return widget
+
+
+def apply_global_theme(app):
+    """Apply the shared NeoBeneSys stylesheet to the entire application."""
+    theme_path = Path(__file__).resolve().parent / "frontend" / "theme.qss"
+    if not theme_path.exists():
+        return
+    try:
+        app.setStyleSheet(theme_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        print(f"[Aviso] Não foi possível aplicar o tema global: {exc}")
 
 # ... (O restante da classe NeoBenesysApp permanece o mesmo do seu projeto, mas com as correções de importação e carregamento de UI) ...
 class NeoBenesysApp:
@@ -238,6 +250,7 @@ class NeoBenesysApp:
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    apply_global_theme(app)
     sistema = NeoBenesysApp()
     sistema.run()
     sys.exit(app.exec())

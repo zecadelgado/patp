@@ -1,0 +1,250 @@
+/* NeoBeneSys global theme */
+* {
+    font-family: "Segoe UI";
+}
+
+QWidget {
+    background-color: #f4f6fb;
+    color: #1f2937;
+    font-size: 10pt;
+}
+
+QLabel#lbl_title {
+    font-size: 24px;
+    font-weight: 600;
+    color: #111827;
+    padding: 8px 16px;
+}
+
+QFrame#header_bar {
+    background-color: #1f2937;
+    color: #ffffff;
+}
+
+QFrame#frame_content,
+QGroupBox#frame_content,
+QFrame[neoCard="true"],
+QGroupBox[neoCard="true"] {
+    background-color: #ffffff;
+    border: 1px solid #d2d8e1;
+    border-radius: 16px;
+    padding: 16px;
+}
+
+QPushButton {
+    background-color: #2563eb;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-weight: 600;
+}
+
+QPushButton:hover {
+    background-color: #1d4ed8;
+}
+
+QPushButton:pressed {
+    background-color: #1e40af;
+}
+
+QPushButton:disabled {
+    background-color: #93c5fd;
+    color: #e5e7eb;
+}
+
+QPushButton#btn_excluir,
+QPushButton#btn_remover,
+QPushButton#btn_deletar,
+QPushButton[neoRole="danger"] {
+    background-color: #dc2626;
+}
+
+QPushButton#btn_excluir:hover,
+QPushButton#btn_remover:hover,
+QPushButton#btn_deletar:hover,
+QPushButton[neoRole="danger"]:hover {
+    background-color: #b91c1c;
+}
+
+QLineEdit,
+QComboBox,
+QSpinBox,
+QDoubleSpinBox,
+QDateEdit,
+QDateTimeEdit,
+QTimeEdit,
+QPlainTextEdit,
+QTextEdit {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 6px 10px;
+}
+
+QLineEdit:focus,
+QComboBox:focus,
+QSpinBox:focus,
+QDoubleSpinBox:focus,
+QDateEdit:focus,
+QDateTimeEdit:focus,
+QTimeEdit:focus,
+QPlainTextEdit:focus,
+QTextEdit:focus {
+    border: 1px solid #2563eb;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+QComboBox::drop-down {
+    border: none;
+}
+
+QComboBox::down-arrow {
+    image: url(:/qt-project.org/styles/commonstyle/images/arrowdown-16.png);
+}
+
+QTableWidget,
+QTreeWidget,
+QListWidget {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    gridline-color: #e5e7eb;
+    selection-background-color: rgba(37, 99, 235, 0.12);
+    selection-color: #1f2937;
+    alternate-background-color: #f9fafb;
+}
+
+QHeaderView::section {
+    background: #e5e7eb;
+    border: none;
+    border-right: 1px solid #d1d5db;
+    padding: 8px 12px;
+    font-weight: 600;
+    color: #111827;
+}
+
+QTabWidget::pane {
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+QTabBar::tab {
+    background: #e5e7eb;
+    border: 1px solid #d1d5db;
+    border-bottom: none;
+    padding: 8px 18px;
+    margin-right: 4px;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    color: #374151;
+}
+
+QTabBar::tab:selected {
+    background: #ffffff;
+    color: #111827;
+}
+
+QScrollArea {
+    border: none;
+    background: transparent;
+}
+
+QGroupBox {
+    border: 1px solid #d1d5db;
+    border-radius: 12px;
+    margin-top: 16px;
+    padding: 16px;
+}
+
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 8px;
+    color: #111827;
+    font-weight: 600;
+}
+
+QStatusBar {
+    background: #ffffff;
+    border-top: 1px solid #d1d5db;
+}
+
+/* Dashboard sidebar overrides */
+QPushButton#btn_patrimonio,
+QPushButton#btn_movimentacoes,
+QPushButton#btn_manutencoes,
+QPushButton#btn_notas_fiscais,
+QPushButton#btn_fornecedores,
+QPushButton#btn_centro_custo,
+QPushButton#btn_setores_locais,
+QPushButton#btn_depreciacao,
+QPushButton#btn_usuarios,
+QPushButton#btn_relatorios,
+QPushButton#btn_auditoria,
+QPushButton#btn_anexos,
+QPushButton#btn_sair {
+    background-color: transparent;
+    color: #e5e7eb;
+    border-radius: 0px;
+    text-align: left;
+    padding: 14px 24px;
+    border-left: 3px solid transparent;
+    font-weight: 500;
+}
+
+QPushButton#btn_sair {
+    color: #fca5a5;
+}
+
+QPushButton#btn_patrimonio:hover,
+QPushButton#btn_movimentacoes:hover,
+QPushButton#btn_manutencoes:hover,
+QPushButton#btn_notas_fiscais:hover,
+QPushButton#btn_fornecedores:hover,
+QPushButton#btn_centro_custo:hover,
+QPushButton#btn_setores_locais:hover,
+QPushButton#btn_depreciacao:hover,
+QPushButton#btn_usuarios:hover,
+QPushButton#btn_relatorios:hover,
+QPushButton#btn_auditoria:hover,
+QPushButton#btn_anexos:hover {
+    background-color: rgba(59, 130, 246, 0.15);
+    border-left: 3px solid #2563eb;
+}
+
+QPushButton#btn_sair:hover {
+    background-color: rgba(220, 38, 38, 0.2);
+    color: #fecaca;
+}
+
+QFrame#frame_sidebar {
+    background-color: #111827;
+}
+
+QFrame#frame_logo {
+    background-color: #1f2937;
+}
+
+QFrame#frame_menu {
+    background-color: transparent;
+}
+
+QLabel#lbl_logo {
+    color: #f9fafb;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+QLabel#lbl_saudacao {
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+}
+
+QLabel#lbl_data,
+QLabel#lbl_relogio {
+    font-size: 14px;
+    color: #4b5563;
+}
