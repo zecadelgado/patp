@@ -15,7 +15,8 @@ from Notas import NotasFiscaisController
 from patrimonio_controller import PatrimonioController # NOVO
 from depreciassao import DepreciacaoController
 
-def create_controller(key, widget, db_manager):
+
+def create_controller(key, widget, db_manager, current_user=None):
     if key == "notas_fiscais":
         return NotasFiscaisController(widget, db_manager)
     if key == "fornecedores":
@@ -164,7 +165,7 @@ class NeoBenesysApp:
                     stacked.addWidget(widget)
                     self.widgets[key] = widget
 
-                    controller = create_controller(key, widget, self.db_manager)
+                    controller = create_controller(key, widget, self.db_manager, self.current_user)
                     if controller:
                         self.controllers[key] = controller
                 except Exception as e:

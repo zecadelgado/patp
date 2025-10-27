@@ -1,10 +1,18 @@
-import mysql.connector
-from mysql.connector import errorcode
+from __future__ import annotations
+
+import json
+import mimetypes
+import os
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+
+import mysql.connector
+from mysql.connector import errorcode
 
 from config_db import get_connection
+
 
 class DatabaseManager:
     def __init__(self):
@@ -71,17 +79,78 @@ class DatabaseManager:
             return user
         return None
 
-    def create_user(self, nome, email, password):
+    def get_table_columns(self, table: str) -> List[str]:
+        self._ensure_connection()
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(f"SHOW COLUMNS FROM `{table}`")
+            return [row[0] for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+
+    def create_user(self, nome, email, password, nivel_acesso: str = "user", ativo: Optional[bool] = None):
         if self.get_user_by_email(email):
             return None
-        insert_sql = """
-            INSERT INTO usuarios (nome, email, senha)
-            VALUES (%s, %s, %s)
-        """
-        rows = self.execute_query(insert_sql, (nome, email, password))
+
+        columns = ["nome", "email", "senha", "nivel_acesso"]
+        values: List[Any] = [nome, email, password, nivel_acesso]
+
+        try:
+            available = set(self.get_table_columns("usuarios"))
+        except mysql.connector.Error:
+            available = {"nome", "email", "senha", "nivel_acesso"}
+
+        if "ativo" in available and ativo is not None:
+            columns.append("ativo")
+            values.append(1 if ativo else 0)
+
+        insert_sql = f"INSERT INTO usuarios ({', '.join(columns)}) VALUES ({', '.join(['%s'] * len(columns))})"
+        rows = self.execute_query(insert_sql, tuple(values))
         if not rows:
             return None
         return self.get_user_by_email(email)
+
+    def update_user(self, user_id: int, data: Dict[str, Any]) -> bool:
+        if not data:
+            return False
+
+        allowed: Sequence[str]
+        try:
+            allowed = self.get_table_columns("usuarios")
+        except mysql.connector.Error:
+            allowed = ("nome", "email", "senha", "nivel_acesso", "ativo")
+
+        updates: List[str] = []
+        params: List[Any] = []
+        for key, value in data.items():
+            if key not in allowed or key == "id_usuario":
+                continue
+            updates.append(f"`{key}` = %s")
+            params.append(value)
+
+        if not updates:
+            return False
+
+        params.append(user_id)
+        sql = f"UPDATE usuarios SET {', '.join(updates)} WHERE id_usuario = %s"
+        rows = self.execute_query(sql, tuple(params))
+        return bool(rows)
+
+    def delete_user(self, user_id: int) -> bool:
+        sql = "DELETE FROM usuarios WHERE id_usuario = %s"
+        rows = self.execute_query(sql, (user_id,))
+        return bool(rows)
+
+    def set_user_active(self, user_id: int, active: bool) -> bool:
+        try:
+            columns = self.get_table_columns("usuarios")
+        except mysql.connector.Error:
+            columns = []
+        if "ativo" not in columns:
+            return False
+        sql = "UPDATE usuarios SET ativo = %s WHERE id_usuario = %s"
+        rows = self.execute_query(sql, (1 if active else 0, user_id))
+        return bool(rows)
 
     def create_patrimonio(self, data: Dict[str, Any]) -> int:
         self._ensure_connection()
@@ -254,6 +323,71 @@ class DatabaseManager:
         query += " ORDER BY nome_setor_local"
         return self.fetch_all(query, params)
 
+    def create_setor_local(self, data: Dict[str, Any]) -> int:
+        if not data:
+            raise ValueError("Dados de setor/local não informados.")
+        try:
+            allowed = set(self.get_table_columns("setores_locais"))
+        except mysql.connector.Error:
+            allowed = {
+                "nome_setor_local",
+                "localizacao",
+                "descricao",
+                "responsavel",
+                "capacidade",
+                "andar",
+            }
+        payload = {k: v for k, v in data.items() if k in allowed and k != "id_setor_local"}
+        if not payload:
+            raise ValueError("Nenhuma coluna válida para setores/locais.")
+        columns = ", ".join(f"`{key}`" for key in payload.keys())
+        placeholders = ", ".join(["%s"] * len(payload))
+        sql = f"INSERT INTO setores_locais ({columns}) VALUES ({placeholders})"
+        self._ensure_connection()
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(sql, tuple(payload.values()))
+            self.connection.commit()
+            return cursor.lastrowid
+        except mysql.connector.Error:
+            self.connection.rollback()
+            raise
+        finally:
+            cursor.close()
+
+    def update_setor_local(self, setor_id: int, data: Dict[str, Any]) -> bool:
+        if not data:
+            return False
+        try:
+            allowed = set(self.get_table_columns("setores_locais"))
+        except mysql.connector.Error:
+            allowed = {
+                "nome_setor_local",
+                "localizacao",
+                "descricao",
+                "responsavel",
+                "capacidade",
+                "andar",
+            }
+        updates: List[str] = []
+        params: List[Any] = []
+        for key, value in data.items():
+            if key not in allowed or key == "id_setor_local":
+                continue
+            updates.append(f"`{key}` = %s")
+            params.append(value)
+        if not updates:
+            return False
+        params.append(setor_id)
+        sql = f"UPDATE setores_locais SET {', '.join(updates)} WHERE id_setor_local = %s"
+        rows = self.execute_query(sql, tuple(params))
+        return bool(rows)
+
+    def delete_setor_local(self, setor_id: int) -> bool:
+        sql = "DELETE FROM setores_locais WHERE id_setor_local = %s"
+        rows = self.execute_query(sql, (setor_id,))
+        return bool(rows)
+
     def list_patrimonios(self, filters: Optional[Dict[str, Any]] = None):
         query = """
             SELECT
@@ -322,42 +456,205 @@ class DatabaseManager:
         """
         return self.fetch_all(query, tuple(params) if params else None)
 
-    def list_manutencoes(self):
-        query = """
-            SELECT
-                m.id_manutencao,
-                m.data_inicio,
-                m.data_fim,
-                m.descricao,
-                m.custo,
-                m.responsavel,
-                m.status,
-                p.id_patrimonio,
-                p.nome AS nome_patrimonio
-            FROM manutencoes m
-            INNER JOIN patrimonios p ON p.id_patrimonio = m.id_patrimonio
-            ORDER BY m.data_inicio DESC
-        """
-        return self.fetch_all(query)
+    def list_manutencoes(self, filters: Optional[Dict[str, Any]] = None):
+        base_query = [
+            "SELECT",
+            "    m.*,",
+            "    p.nome AS nome_patrimonio",
+            "FROM manutencoes m",
+            "INNER JOIN patrimonios p ON p.id_patrimonio = m.id_patrimonio",
+        ]
+        params: List[Any] = []
+        conditions: List[str] = []
+        if filters:
+            patrimonio_id = filters.get("id_patrimonio")
+            if patrimonio_id:
+                conditions.append("m.id_patrimonio = %s")
+                params.append(patrimonio_id)
+            status = filters.get("status")
+            if status:
+                conditions.append("m.status = %s")
+                params.append(status)
+            data_inicio = filters.get("data_inicio")
+            if data_inicio:
+                conditions.append("m.data_inicio >= %s")
+                params.append(data_inicio)
+            data_fim = filters.get("data_fim")
+            if data_fim:
+                conditions.append("m.data_inicio <= %s")
+                params.append(data_fim)
+        if conditions:
+            base_query.append("WHERE " + " AND ".join(conditions))
+        base_query.append("ORDER BY m.data_inicio DESC")
+        query = "\n".join(base_query)
+        return self.fetch_all(query, tuple(params) if params else None)
 
-    def list_movimentacoes(self, limit=50):
+    def create_manutencao(self, data: Dict[str, Any]) -> int:
+        if not data:
+            raise ValueError("Dados de manutenção não informados.")
+        try:
+            allowed = set(self.get_table_columns("manutencoes"))
+        except mysql.connector.Error:
+            allowed = {
+                "id_patrimonio",
+                "data_inicio",
+                "data_fim",
+                "descricao",
+                "custo",
+                "responsavel",
+                "status",
+                "tipo_manutencao",
+                "empresa",
+            }
+        payload = {k: v for k, v in data.items() if k in allowed and k != "id_manutencao"}
+        if not payload:
+            raise ValueError("Nenhuma coluna válida para manutenção.")
+        columns = ", ".join(f"`{key}`" for key in payload.keys())
+        placeholders = ", ".join(["%s"] * len(payload))
+        sql = f"INSERT INTO manutencoes ({columns}) VALUES ({placeholders})"
+        self._ensure_connection()
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(sql, tuple(payload.values()))
+            self.connection.commit()
+            return cursor.lastrowid
+        except mysql.connector.Error:
+            self.connection.rollback()
+            raise
+        finally:
+            cursor.close()
+
+    def update_manutencao(self, manutencao_id: int, data: Dict[str, Any]) -> bool:
+        if not data:
+            return False
+        try:
+            allowed = set(self.get_table_columns("manutencoes"))
+        except mysql.connector.Error:
+            allowed = {
+                "id_patrimonio",
+                "data_inicio",
+                "data_fim",
+                "descricao",
+                "custo",
+                "responsavel",
+                "status",
+                "tipo_manutencao",
+                "empresa",
+            }
+        updates: List[str] = []
+        params: List[Any] = []
+        for key, value in data.items():
+            if key not in allowed or key == "id_manutencao":
+                continue
+            updates.append(f"`{key}` = %s")
+            params.append(value)
+        if not updates:
+            return False
+        params.append(manutencao_id)
+        sql = f"UPDATE manutencoes SET {', '.join(updates)} WHERE id_manutencao = %s"
+        rows = self.execute_query(sql, tuple(params))
+        return bool(rows)
+
+    def delete_manutencao(self, manutencao_id: int) -> bool:
+        sql = "DELETE FROM manutencoes WHERE id_manutencao = %s"
+        rows = self.execute_query(sql, (manutencao_id,))
+        return bool(rows)
+
+    def get_patrimonio(self, patrimonio_id: int) -> Optional[Dict[str, Any]]:
         query = """
             SELECT
-                mov.id_movimentacao,
-                mov.data_movimentacao,
-                mov.tipo_movimentacao,
-                mov.origem,
-                mov.destino,
-                mov.observacoes,
-                p.nome AS nome_patrimonio,
-                u.nome AS nome_usuario
-            FROM movimentacoes mov
-            INNER JOIN patrimonios p ON p.id_patrimonio = mov.id_patrimonio
-            INNER JOIN usuarios u ON u.id_usuario = mov.id_usuario
-            ORDER BY mov.data_movimentacao DESC
-            LIMIT %s
+                p.*,
+                cat.nome_categoria,
+                sl.nome_setor_local,
+                sl.localizacao
+            FROM patrimonios p
+            LEFT JOIN categorias cat ON cat.id_categoria = p.id_categoria
+            LEFT JOIN setores_locais sl ON sl.id_setor_local = p.id_setor_local
+            WHERE p.id_patrimonio = %s
         """
-        return self.fetch_all(query, (limit,))
+        return self.fetch_one(query, (patrimonio_id,))
+
+    def update_patrimonio_setor_local(self, patrimonio_id: int, setor_local_id: Optional[int]) -> bool:
+        sql = "UPDATE patrimonios SET id_setor_local = %s WHERE id_patrimonio = %s"
+        rows = self.execute_query(sql, (setor_local_id, patrimonio_id))
+        return bool(rows)
+
+    def list_movimentacoes(
+        self,
+        limit: int = 100,
+        filters: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        base_query = [
+            "SELECT",
+            "    mov.id_movimentacao,",
+            "    mov.data_movimentacao,",
+            "    mov.tipo_movimentacao,",
+            "    mov.origem,",
+            "    mov.destino,",
+            "    mov.observacoes,",
+            "    mov.responsavel,",
+            "    p.nome AS nome_patrimonio,",
+            "    u.nome AS nome_usuario",
+            "FROM movimentacoes mov",
+            "INNER JOIN patrimonios p ON p.id_patrimonio = mov.id_patrimonio",
+            "INNER JOIN usuarios u ON u.id_usuario = mov.id_usuario",
+        ]
+        params: List[Any] = []
+        conditions: List[str] = []
+        if filters:
+            patrimonio_id = filters.get("id_patrimonio")
+            if patrimonio_id:
+                conditions.append("mov.id_patrimonio = %s")
+                params.append(patrimonio_id)
+            inicio = filters.get("data_inicio")
+            if inicio:
+                conditions.append("mov.data_movimentacao >= %s")
+                params.append(inicio)
+            fim = filters.get("data_fim")
+            if fim:
+                conditions.append("mov.data_movimentacao <= %s")
+                params.append(fim)
+        if conditions:
+            base_query.append("WHERE " + " AND ".join(conditions))
+        base_query.append("ORDER BY mov.data_movimentacao DESC")
+        base_query.append("LIMIT %s")
+        params.append(limit)
+        query = "\n".join(base_query)
+        return self.fetch_all(query, tuple(params))
+
+    def create_movimentacao(self, data: Dict[str, Any]) -> int:
+        if not data:
+            raise ValueError("Dados da movimentação não informados.")
+        try:
+            allowed = set(self.get_table_columns("movimentacoes"))
+        except mysql.connector.Error:
+            allowed = {
+                "id_patrimonio",
+                "id_usuario",
+                "data_movimentacao",
+                "tipo_movimentacao",
+                "origem",
+                "destino",
+                "observacoes",
+                "responsavel",
+            }
+        payload = {k: v for k, v in data.items() if k in allowed and k != "id_movimentacao"}
+        if not payload:
+            raise ValueError("Nenhuma coluna válida para movimentação.")
+        columns = ", ".join(f"`{key}`" for key in payload.keys())
+        placeholders = ", ".join(["%s"] * len(payload))
+        sql = f"INSERT INTO movimentacoes ({columns}) VALUES ({placeholders})"
+        self._ensure_connection()
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(sql, tuple(payload.values()))
+            self.connection.commit()
+            return cursor.lastrowid
+        except mysql.connector.Error:
+            self.connection.rollback()
+            raise
+        finally:
+            cursor.close()
 
     def list_notas_fiscais(self):
         query = """
@@ -388,29 +685,63 @@ class DatabaseManager:
         """
         return self.fetch_all(query, (id_nota_fiscal,))
 
-    def list_anexos(self):
-        query = """
-            SELECT
-                a.id_anexo,
-                p.nome AS nome_patrimonio,
-                a.nome_arquivo,
-                a.caminho_arquivo,
-                a.tipo_arquivo,
-                a.data_upload
-            FROM anexos a
-            INNER JOIN patrimonios p ON p.id_patrimonio = a.id_patrimonio
-            ORDER BY a.data_upload DESC
-        """
-        return self.fetch_all(query)
+    def list_anexos(self, id_patrimonio: Optional[int] = None) -> List[Dict[str, Any]]:
+        query_parts = [
+            "SELECT",
+            "    a.*,",
+            "    p.nome AS nome_patrimonio",
+            "FROM anexos a",
+            "INNER JOIN patrimonios p ON p.id_patrimonio = a.id_patrimonio",
+        ]
+        params: List[Any] = []
+        if id_patrimonio:
+            query_parts.append("WHERE a.id_patrimonio = %s")
+            params.append(id_patrimonio)
+        query_parts.append("ORDER BY a.data_upload DESC")
+        query = "\n".join(query_parts)
+        return self.fetch_all(query, tuple(params) if params else None)
+
+    def create_anexo(self, data: Dict[str, Any]) -> int:
+        if not data:
+            raise ValueError("Dados do anexo não informados.")
+        try:
+            allowed = set(self.get_table_columns("anexos"))
+        except mysql.connector.Error:
+            allowed = {
+                "id_patrimonio",
+                "nome_arquivo",
+                "caminho_arquivo",
+                "tipo_arquivo",
+                "tamanho_arquivo",
+                "data_upload",
+            }
+        payload = {k: v for k, v in data.items() if k in allowed and k != "id_anexo"}
+        if not payload:
+            raise ValueError("Nenhuma coluna válida para anexo.")
+        columns = ", ".join(f"`{key}`" for key in payload.keys())
+        placeholders = ", ".join(["%s"] * len(payload))
+        sql = f"INSERT INTO anexos ({columns}) VALUES ({placeholders})"
+        self._ensure_connection()
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(sql, tuple(payload.values()))
+            self.connection.commit()
+            return cursor.lastrowid
+        except mysql.connector.Error:
+            self.connection.rollback()
+            raise
+        finally:
+            cursor.close()
+
+    def delete_anexo(self, anexo_id: int) -> bool:
+        sql = "DELETE FROM anexos WHERE id_anexo = %s"
+        rows = self.execute_query(sql, (anexo_id,))
+        return bool(rows)
 
     def list_auditorias(self, limit=100):
         query = """
             SELECT
-                aud.id_auditoria,
-                aud.data_auditoria,
-                aud.tabela_afetada,
-                aud.id_registro_afetado,
-                aud.acao,
+                aud.*,
                 usr.nome AS nome_usuario
             FROM auditorias aud
             INNER JOIN usuarios usr ON usr.id_usuario = aud.id_usuario
@@ -423,11 +754,12 @@ class DatabaseManager:
         query = """
             SELECT
                 sl.nome_setor_local AS setor,
+                COALESCE(sl.localizacao, '-') AS localizacao,
                 COUNT(p.id_patrimonio) AS quantidade,
                 COALESCE(SUM(p.valor_compra), 0) AS valor_total
             FROM setores_locais sl
             LEFT JOIN patrimonios p ON p.id_setor_local = sl.id_setor_local
-            GROUP BY sl.id_setor_local, sl.nome_setor_local
+            GROUP BY sl.id_setor_local, sl.nome_setor_local, sl.localizacao
             ORDER BY sl.nome_setor_local
         """
         return self.fetch_all(query)
@@ -437,9 +769,10 @@ class DatabaseManager:
             SELECT
                 cat.nome_categoria AS categoria,
                 COUNT(p.id_patrimonio) AS quantidade,
-                COALESCE(SUM(p.valor_compra), 0) AS valor_total
+                COALESCE(SUM(dep.valor_depreciado), 0) AS depreciacao_acumulada
             FROM categorias cat
             LEFT JOIN patrimonios p ON p.id_categoria = cat.id_categoria
+            LEFT JOIN depreciacoes dep ON dep.id_patrimonio = p.id_patrimonio
             GROUP BY cat.id_categoria, cat.nome_categoria
             ORDER BY cat.nome_categoria
         """
@@ -450,9 +783,10 @@ class DatabaseManager:
             SELECT
                 m.data_inicio,
                 p.nome AS nome_patrimonio,
-                m.status,
+                COALESCE(m.tipo_manutencao, m.status) AS tipo,
                 m.responsavel,
-                m.custo
+                m.custo,
+                m.status
             FROM manutencoes m
             INNER JOIN patrimonios p ON p.id_patrimonio = m.id_patrimonio
             ORDER BY m.data_inicio DESC
