@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from numbers import Number
+from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -29,7 +30,8 @@ class _UserRecord:
     nome: str
     email: str
     nivel_acesso: str
-    ativo: Optional[str] = None
+    ativo: Optional[bool] = None
+    ativo_label: str = "-"
 
 
 class UsuariosController:
@@ -105,6 +107,43 @@ class UsuariosController:
 
     # ------------------------------------------------------------------ #
     # Data loading
+    @staticmethod
+    def _parse_active_value(value: object) -> Tuple[Optional[bool], str]:
+        truthy = {"1", "true", "t", "sim", "s", "yes", "y", "ativo", "active"}
+        falsy = {"0", "false", "f", "nao", "não", "n", "inativo", "inactive"}
+
+        if isinstance(value, bool):
+            return value, "Sim" if value else "Não"
+        if value is None:
+            return None, "-"
+        if isinstance(value, Number):
+            flag = value != 0
+            return flag, "Sim" if flag else "Não"
+        if isinstance(value, (bytes, bytearray)):
+            try:
+                decoded = value.decode().strip()
+            except Exception:
+                return None, "-"
+            return UsuariosController._parse_active_value(decoded)
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None, "-"
+            lowered = text.lower()
+            if lowered in truthy:
+                return True, "Sim"
+            if lowered in falsy:
+                return False, "Não"
+            try:
+                numeric = float(text.replace(",", "."))
+            except ValueError:
+                return None, text
+            flag = numeric != 0.0
+            return flag, "Sim" if flag else "Não"
+
+        flag = bool(value)
+        return flag, "Sim" if flag else "Não"
+
     def _carregar_usuarios(self) -> None:
         termo = self.search_input.text().strip() if self.search_input else None
         rows = self.db_manager.list_users(termo or None)
@@ -112,12 +151,14 @@ class UsuariosController:
         if self.table:
             self.table.setRowCount(0)
         for row in rows:
+            ativo_bool, ativo_label = self._parse_active_value(row.get("ativo"))
             record = _UserRecord(
                 id_usuario=int(row.get("id_usuario")),
                 nome=str(row.get("nome")),
                 email=str(row.get("email")),
                 nivel_acesso=str(row.get("nivel_acesso", "-")),
-                ativo=str(row.get("ativo", "Sim")),
+                ativo=ativo_bool,
+                ativo_label=ativo_label,
             )
             self._usuarios.append(record)
         self._popular_tabela()
@@ -131,8 +172,7 @@ class UsuariosController:
             self._set_item(row_index, 1, usuario.nome)
             self._set_item(row_index, 2, usuario.email)
             self._set_item(row_index, 3, usuario.nivel_acesso)
-            ativo_text = usuario.ativo if usuario.ativo is not None else "-"
-            self._set_item(row_index, 4, ativo_text)
+            self._set_item(row_index, 4, usuario.ativo_label)
         self.table.resizeColumnsToContents()
 
     def _set_item(self, row: int, column: int, text: str, selectable: bool = True) -> None:
@@ -280,7 +320,8 @@ class _UsuarioDialog(QDialog):
         index = self.nivel_combo.findText(usuario.nivel_acesso, Qt.MatchFlag.MatchFixedString)
         if index >= 0:
             self.nivel_combo.setCurrentIndex(index)
-        self.ativo_check.setChecked(usuario.ativo not in {None, "Não", "0", "False", "false"})
+        is_active = bool(usuario.ativo) if usuario.ativo is not None else False
+        self.ativo_check.setChecked(is_active)
         self.senha_input.setPlaceholderText("Manter senha atual")
         self.confirmacao_input.setPlaceholderText("Manter senha atual")
 
