@@ -316,14 +316,57 @@ class DatabaseManager:
             cursor.close()
 
     # ---- Listagem utilitaria para telas --------------------------------- #
+    @staticmethod
+    def _normalize_user_active(value: Any) -> Optional[bool]:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return None
+        if isinstance(value, (int, float, Decimal)):
+            return value != 0
+        if isinstance(value, (bytes, bytearray)):
+            try:
+                value = value.decode().strip()
+            except Exception:
+                return None
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None
+            lowered = text.lower()
+            truthy = {"1", "true", "t", "sim", "s", "yes", "y", "ativo", "active"}
+            falsy = {"0", "false", "f", "nao", "não", "n", "inativo", "inactive"}
+            if lowered in truthy:
+                return True
+            if lowered in falsy:
+                return False
+            try:
+                numeric = Decimal(text)
+            except (ArithmeticError, ValueError):
+                return None
+            return numeric != 0
+        return bool(value)
+
     def list_users(self, search=None):
-        base_query = """
+        try:
+            columns = set(self.get_table_columns("usuarios"))
+        except mysql.connector.Error:
+            columns = set()
+
+        select_fields = [
+            "id_usuario",
+            "nome",
+            "email",
+            "nivel_acesso",
+        ]
+        if "ativo" in columns:
+            select_fields.append("ativo")
+        else:
+            select_fields.append("NULL AS ativo")
+
+        base_query = f"""
             SELECT
-                id_usuario,
-                nome,
-                email,
-                nivel_acesso,
-                'Sim' AS ativo
+                {', '.join(select_fields)}
             FROM usuarios
         """
         params = None
@@ -332,7 +375,11 @@ class DatabaseManager:
             like_term = f"%{search}%"
             params = (like_term, like_term)
         base_query += " ORDER BY nome"
-        return self.fetch_all(base_query, params)
+
+        rows = self.fetch_all(base_query, params)
+        for row in rows:
+            row["ativo"] = self._normalize_user_active(row.get("ativo"))
+        return rows
 
     def list_categorias(self):
         query = """

@@ -72,29 +72,51 @@ class AnexosController:
             self.btn_remover.clicked.connect(self._remover_anexo)
         if self.btn_atualizar:
             self.btn_atualizar.clicked.connect(self.refresh)
+        if self.sb_entidade_id:
+            self.sb_entidade_id.valueChanged.connect(self.refresh)
 
     # ------------------------------------------------------------------ #
     def refresh(self) -> None:
         self._carregar_anexos()
 
     def _carregar_anexos(self) -> None:
-        entidade = self.cb_entidade.currentText().strip() if self.cb_entidade else "patrimonio"
-        entidade_id = self.sb_entidade_id.value() if self.sb_entidade_id else 0
-        filtro_id = entidade_id if entidade_id > 0 else None
-        try:
-            rows = self.db_manager.list_anexos(entidade, filtro_id)
-        except ValueError as exc:
-            QMessageBox.warning(self.widget, "Anexos", str(exc))
-            rows = []
-        except Exception as exc:  # pragma: no cover - interação com DB
-            QMessageBox.critical(
-                self.widget,
-                "Anexos",
-                f"Não foi possível carregar os anexos.\n{exc}",
-            )
-            rows = []
         if not self.table:
             return
+        patrimonio_id = self.sb_entidade_id.value() if self.sb_entidade_id else 0
+        rows = []
+        mensagem: Optional[str] = None
+        if patrimonio_id > 0:
+            try:
+                rows = self.db_manager.list_anexos(patrimonio_id)
+            except Exception as exc:  # pragma: no cover - interação com DB
+                QMessageBox.critical(
+                    self.widget,
+                    "Anexos",
+                    f"Não foi possível carregar os anexos.\n{exc}",
+                )
+                mensagem = "Não foi possível carregar os anexos."
+            if not rows and mensagem is None:
+                mensagem = "Nenhum anexo encontrado para o patrimônio informado."
+        else:
+            mensagem = "Informe o ID do patrimônio para visualizar os anexos."
+
+        self._preencher_tabela(rows, mensagem)
+
+    def _preencher_tabela(
+        self, rows: List[dict], mensagem: Optional[str] = None
+    ) -> None:
+        if not self.table:
+            return
+        self.table.setRowCount(0)
+        if not rows:
+            self.table.setRowCount(1)
+            texto = mensagem or "Nenhum anexo encontrado."
+            self._set_item(0, 0, texto)
+            for column in range(1, len(self.TABLE_HEADERS)):
+                self._set_item(0, column, "")
+            self.table.resizeColumnsToContents()
+            return
+
         self.table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
             entidade_row = row.get("entidade") or entidade
