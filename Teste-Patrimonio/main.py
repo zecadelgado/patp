@@ -171,19 +171,18 @@ class NeoBenesysApp:
                     print(f"[Aviso] Não consegui carregar {ui_file}: {e}")
 
         button_map = {
-            "btn_usuarios": "usuarios",
             "btn_patrimonio": "patrimonio",
+            "btn_movimentacoes": "movimentacoes",
             "btn_manutencoes": "manutencao",
+            "btn_notas_fiscais": "notas_fiscais",
+            "btn_fornecedores": "fornecedores",
+            "btn_centro_custo": "centro_custo",
+            "btn_setores_locais": "setores_locais",
             "btn_depreciacao": "depreciacao",
+            "btn_usuarios": "usuarios",
+            "btn_relatorios": "relatorios",
             "btn_auditoria": "auditoria",
             "btn_anexos": "anexos",
-            "btn_relatorios": "relatorios",
-            "btn_fornecedores": "fornecedores",
-            "btn_categorias": "categorias",
-            "btn_centro_custo": "centro_custo",
-            "btn_notas_fiscais": "notas_fiscais",
-            "btn_movimentacoes": "movimentacoes",
-            "btn_setores_locais": "setores_locais",
         }
 
         for btn_name, screen_key in button_map.items():

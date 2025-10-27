@@ -398,6 +398,28 @@ QPushButton:checked {
            </widget>
           </item>
           <item>
+           <widget class="QPushButton" name="btn_anexos">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>50</height>
+             </size>
+            </property>
+            <property name="cursor">
+             <cursorShape>PointingHandCursor</cursorShape>
+            </property>
+            <property name="toolTip">
+             <string>Gerenciamento de anexos</string>
+            </property>
+            <property name="text">
+             <string>  Anexos</string>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QPushButton" name="btn_relatorios">
             <property name="minimumSize">
              <size>
