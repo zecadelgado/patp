@@ -15,6 +15,68 @@ from config_db import get_connection
 
 
 class DatabaseManager:
+    """Encapsula as interações com o banco de dados."""
+
+    _ANEXO_CONFIG: Dict[str, Dict[str, Any]] = {
+        "patrimonio": {
+            "table": "anexos",
+            "pk": "id_anexo",
+            "columns": {
+                "entidade_id": "id_patrimonio",
+                "nome_arquivo": "nome_arquivo",
+                "caminho_arquivo": "caminho_arquivo",
+                "tipo_arquivo": "tipo_arquivo",
+                "tamanho_arquivo": "tamanho_arquivo",
+                "data_upload": "data_upload",
+            },
+            "joins": [
+                "INNER JOIN patrimonios p ON p.id_patrimonio = a.id_patrimonio",
+            ],
+            "extra_select": [
+                "p.nome AS nome_entidade",
+            ],
+            "order_by": "a.data_upload DESC",
+        },
+        "manutencao": {
+            "table": "anexos_manutencoes",
+            "pk": "id_anexo",
+            "columns": {
+                "entidade_id": "id_manutencao",
+                "nome_arquivo": "nome_arquivo",
+                "caminho_arquivo": "caminho_arquivo",
+                "tipo_arquivo": "tipo_arquivo",
+                "tamanho_arquivo": "tamanho_arquivo",
+                "data_upload": "data_upload",
+            },
+            "joins": [
+                "INNER JOIN manutencoes m ON m.id_manutencao = a.id_manutencao",
+            ],
+            "extra_select": [
+                "m.descricao AS nome_entidade",
+            ],
+            "order_by": "a.data_upload DESC",
+        },
+        "nota_fiscal": {
+            "table": "anexos_notas_fiscais",
+            "pk": "id_anexo",
+            "columns": {
+                "entidade_id": "id_nota_fiscal",
+                "nome_arquivo": "nome_arquivo",
+                "caminho_arquivo": "caminho_arquivo",
+                "tipo_arquivo": "tipo_arquivo",
+                "tamanho_arquivo": "tamanho_arquivo",
+                "data_upload": "data_upload",
+            },
+            "joins": [
+                "INNER JOIN notas_fiscais nf ON nf.id_nota_fiscal = a.id_nota_fiscal",
+            ],
+            "extra_select": [
+                "nf.numero_nota AS nome_entidade",
+            ],
+            "order_by": "a.data_upload DESC",
+        },
+    }
+
     def __init__(self):
         self.connection = None
 
@@ -732,42 +794,104 @@ class DatabaseManager:
         """
         return self.fetch_all(query, (id_nota_fiscal,))
 
-    def list_anexos(self, id_patrimonio: Optional[int] = None) -> List[Dict[str, Any]]:
-        query_parts = [
-            "SELECT",
-            "    a.*,",
-            "    p.nome AS nome_patrimonio",
-            "FROM anexos a",
-            "INNER JOIN patrimonios p ON p.id_patrimonio = a.id_patrimonio",
-        ]
-        params: List[Any] = []
-        if id_patrimonio:
-            query_parts.append("WHERE a.id_patrimonio = %s")
-            params.append(id_patrimonio)
-        query_parts.append("ORDER BY a.data_upload DESC")
-        query = "\n".join(query_parts)
-        return self.fetch_all(query, tuple(params) if params else None)
+    def _normalize_anexo_entidade(self, entidade: Optional[str]) -> str:
+        chave = (entidade or "patrimonio").strip().lower()
+        if chave not in self._ANEXO_CONFIG:
+            raise ValueError(f"Entidade de anexo '{entidade}' não é suportada.")
+        return chave
 
-    def create_anexo(self, data: Dict[str, Any]) -> int:
+    def _get_anexo_allowed_columns(self, entidade: str) -> List[str]:
+        config = self._ANEXO_CONFIG[entidade]
+        try:
+            return self.get_table_columns(config["table"])
+        except mysql.connector.Error:
+            valores = [valor for valor in config["columns"].values() if valor]
+            return valores
+
+    def list_anexos(
+        self,
+        entidade: Optional[str] = None,
+        entidade_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        entidade_norm = self._normalize_anexo_entidade(entidade)
+        config = self._ANEXO_CONFIG[entidade_norm]
+
+        def _alias(coluna: Optional[str], apelido: str) -> str:
+            if coluna:
+                return f"a.`{coluna}` AS {apelido}"
+            return f"NULL AS {apelido}"
+
+        colunas = config["columns"]
+        select = [
+            _alias(config["pk"], "id_anexo"),
+            _alias(colunas.get("entidade_id"), "entidade_id"),
+            _alias(colunas.get("nome_arquivo"), "nome_arquivo"),
+            _alias(colunas.get("caminho_arquivo"), "caminho_arquivo"),
+            _alias(colunas.get("tamanho_arquivo"), "tamanho_arquivo"),
+            _alias(colunas.get("tipo_arquivo"), "tipo_arquivo"),
+            _alias(colunas.get("data_upload"), "data_upload"),
+        ]
+        select.extend(config.get("extra_select", []))
+
+        query_parts = ["SELECT", ",\n".join(select), f"FROM {config['table']} a"]
+        query_parts.extend(config.get("joins", []))
+
+        params: List[Any] = []
+        if entidade_id is not None:
+            query_parts.append(f"WHERE a.`{colunas['entidade_id']}` = %s")
+            params.append(entidade_id)
+
+        order_by = config.get("order_by")
+        if order_by:
+            query_parts.append(f"ORDER BY {order_by}")
+
+        query = "\n".join(query_parts)
+        rows = self.fetch_all(query, tuple(params) if params else None)
+        for row in rows:
+            row.setdefault("entidade", entidade_norm)
+        return rows
+
+    def create_anexo(self, entidade: str, data: Dict[str, Any]) -> int:
         if not data:
             raise ValueError("Dados do anexo não informados.")
-        try:
-            allowed = set(self.get_table_columns("anexos"))
-        except mysql.connector.Error:
-            allowed = {
-                "id_patrimonio",
-                "nome_arquivo",
-                "caminho_arquivo",
-                "tipo_arquivo",
-                "tamanho_arquivo",
-                "data_upload",
-            }
-        payload = {k: v for k, v in data.items() if k in allowed and k != "id_anexo"}
+
+        entidade_norm = self._normalize_anexo_entidade(entidade)
+        config = self._ANEXO_CONFIG[entidade_norm]
+        colunas = config["columns"]
+
+        fk_coluna = colunas.get("entidade_id")
+        entidade_id = data.get("entidade_id") or data.get(fk_coluna)
+        if not entidade_id:
+            raise ValueError("Identificador da entidade não informado.")
+
+        allowed = set(self._get_anexo_allowed_columns(entidade_norm))
+        allowed.discard(config["pk"])
+
+        payload: Dict[str, Any] = {}
+        for chave_logica, coluna in colunas.items():
+            if not coluna or coluna == config["pk"]:
+                continue
+            valor = data.get(chave_logica)
+            if valor is None and chave_logica == coluna:
+                valor = data.get(coluna)
+            if valor is None and chave_logica == "entidade_id":
+                valor = entidade_id
+            if valor is None:
+                continue
+            if coluna in allowed:
+                payload[coluna] = valor
+
+        if fk_coluna and fk_coluna not in payload:
+            if fk_coluna in allowed:
+                payload[fk_coluna] = entidade_id
+
         if not payload:
             raise ValueError("Nenhuma coluna válida para anexo.")
-        columns = ", ".join(f"`{key}`" for key in payload.keys())
+
+        columns = ", ".join(f"`{col}`" for col in payload.keys())
         placeholders = ", ".join(["%s"] * len(payload))
-        sql = f"INSERT INTO anexos ({columns}) VALUES ({placeholders})"
+        sql = f"INSERT INTO {config['table']} ({columns}) VALUES ({placeholders})"
+
         self._ensure_connection()
         cursor = self.connection.cursor()
         try:
@@ -780,8 +904,10 @@ class DatabaseManager:
         finally:
             cursor.close()
 
-    def delete_anexo(self, anexo_id: int) -> bool:
-        sql = "DELETE FROM anexos WHERE id_anexo = %s"
+    def delete_anexo(self, entidade: str, anexo_id: int) -> bool:
+        entidade_norm = self._normalize_anexo_entidade(entidade)
+        config = self._ANEXO_CONFIG[entidade_norm]
+        sql = f"DELETE FROM {config['table']} WHERE `{config['pk']}` = %s"
         rows = self.execute_query(sql, (anexo_id,))
         return bool(rows)
 
