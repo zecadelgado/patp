@@ -13,6 +13,7 @@ from centro_custo import CentroCustoController
 from fornecedores import FornecedoresController
 from Notas import NotasFiscaisController
 from patrimonio_controller import PatrimonioController # NOVO
+from depreciassao import DepreciacaoController
 
 def create_controller(key, widget, db_manager):
     if key == "notas_fiscais":
@@ -23,6 +24,8 @@ def create_controller(key, widget, db_manager):
         return CentroCustoController(widget, db_manager)
     if key == "patrimonio":
         return PatrimonioController(widget, db_manager) # NOVO
+    if key == "depreciacao":
+        return DepreciacaoController(widget, db_manager)
     return None
 
 def load_ui(file_name: str):
