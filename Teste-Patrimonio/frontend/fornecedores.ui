@@ -1,495 +1,469 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <ui version="4.0">
- <class>FornecedoresWidget</class>
- <widget class="QWidget" name="FornecedoresWidget">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>800</width>
-    <height>600</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>Fornecedores</string>
-  </property>
-  <property name="styleSheet">
-   <string notr="true">#FornecedoresWidget {
-	background-color: rgb(226, 255, 196);
-}</string>
-  </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
-   <property name="spacing">
-    <number>20</number>
-   </property>
-   <property name="leftMargin">
-    <number>20</number>
-   </property>
-   <property name="topMargin">
-    <number>20</number>
-   </property>
-   <property name="rightMargin">
-    <number>20</number>
-   </property>
-   <property name="bottomMargin">
-    <number>20</number>
-   </property>
-   <item>
-    <widget class="QLabel" name="lbl_title">
-     <property name="font">
-      <font>
-       <family>Segoe UI</family>
-       <pointsize>24</pointsize>
-       <bold>true</bold>
-      </font>
-     </property>
-     <property name="styleSheet">
-      <string notr="true">color: #333333;
-background: rgba(255, 255, 255, 0.8);
-padding: 10px;
-border-radius: 5px;</string>
-     </property>
-     <property name="text">
+  <class>FornecedoresWidget</class>
+  <widget class="QWidget" name="FornecedoresWidget">
+    <property name="geometry">
+      <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>800</width>
+        <height>600</height>
+      </rect>
+    </property>
+    <property name="windowTitle">
       <string>Fornecedores</string>
-     </property>
-    </widget>
-   </item>
-   <item>
-    <layout class="QHBoxLayout" name="horizontalLayout">
-     <property name="spacing">
-      <number>10</number>
-     </property>
-     <property name="leftMargin">
-      <number>0</number>
-     </property>
-     <property name="topMargin">
-      <number>0</number>
-     </property>
-     <property name="rightMargin">
-      <number>0</number>
-     </property>
-     <property name="bottomMargin">
-      <number>0</number>
-     </property>
-     <item>
-      <widget class="QPushButton" name="btn_novo">
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>40</height>
-        </size>
-       </property>
-       <property name="font">
-        <font>
-         <family>Segoe UI</family>
-         <pointsize>10</pointsize>
-        </font>
-       </property>
-       <property name="cursor">
-        <cursorShape>PointingHandCursor</cursorShape>
-       </property>
-       <property name="toolTip">
-        <string>Adicionar novo fornecedor</string>
-       </property>
-       <property name="styleSheet">
-        <string notr="true">background-color: #rgb(255, 255, 255);
-color: black;
-border: none;
-border-radius: 6px;</string>
-       </property>
-       <property name="text">
-        <string>Novo</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="btn_salvar">
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>40</height>
-        </size>
-       </property>
-       <property name="font">
-        <font>
-         <family>Segoe UI</family>
-         <pointsize>10</pointsize>
-        </font>
-       </property>
-       <property name="cursor">
-        <cursorShape>PointingHandCursor</cursorShape>
-       </property>
-       <property name="toolTip">
-        <string>Salvar fornecedor atual</string>
-       </property>
-       <property name="text">
-        <string>Salvar</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="btn_excluir">
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>40</height>
-        </size>
-       </property>
-       <property name="font">
-        <font>
-         <family>Segoe UI</family>
-         <pointsize>10</pointsize>
-        </font>
-       </property>
-       <property name="cursor">
-        <cursorShape>PointingHandCursor</cursorShape>
-       </property>
-       <property name="toolTip">
-        <string>Excluir fornecedor selecionado</string>
-       </property>
-       <property name="text">
-        <string>Excluir</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="horizontalSpacer">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QLineEdit" name="txt_buscar">
-       <property name="minimumSize">
-        <size>
-         <width>250</width>
-         <height>40</height>
-        </size>
-       </property>
-       <property name="placeholderText">
-        <string>Buscar fornecedor...</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="btn_buscar">
-       <property name="minimumSize">
-        <size>
-         <width>0</width>
-         <height>40</height>
-        </size>
-       </property>
-       <property name="font">
-        <font>
-         <family>Segoe UI</family>
-         <pointsize>10</pointsize>
-        </font>
-       </property>
-       <property name="cursor">
-        <cursorShape>PointingHandCursor</cursorShape>
-       </property>
-       <property name="toolTip">
-        <string>Buscar fornecedores</string>
-       </property>
-       <property name="text">
-        <string>Buscar</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <widget class="QTabWidget" name="tab_widget">
-     <property name="styleSheet">
-      <string notr="true">#tab_Wiget{
-background-color: rgb(226, 255, 196);
-}</string>
-     </property>
-     <property name="currentIndex">
-      <number>0</number>
-     </property>
-     <widget class="QWidget" name="tab_dados">
-      <attribute name="title">
-       <string>Dados do Fornecedor</string>
-      </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_2">
-       <property name="spacing">
+    </property>
+    <layout class="QVBoxLayout" name="verticalLayout">
+      <property name="spacing">
         <number>20</number>
-       </property>
-       <property name="leftMargin">
-        <number>20</number>
-       </property>
-       <property name="topMargin">
-        <number>20</number>
-       </property>
-       <property name="rightMargin">
-        <number>20</number>
-       </property>
-       <property name="bottomMargin">
-        <number>20</number>
-       </property>
-       <item>
-        <layout class="QFormLayout" name="formLayout">
-         <property name="horizontalSpacing">
-          <number>20</number>
-         </property>
-         <property name="verticalSpacing">
-          <number>15</number>
-         </property>
-         <property name="leftMargin">
-          <number>0</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-         <item row="0" column="0">
-          <widget class="QLabel" name="lbl_razao_social">
-           <property name="font">
-            <font>
-             <family>Segoe UI</family>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>Razão Social:</string>
-           </property>
-           <property name="buddy">
-            <cstring>txt_razao_social</cstring>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <widget class="QLineEdit" name="txt_razao_social">
-           <property name="placeholderText">
-            <string>Nome completo da empresa</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="lbl_cnpj">
-           <property name="font">
-            <font>
-             <family>Segoe UI</family>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>CNPJ:</string>
-           </property>
-           <property name="buddy">
-            <cstring>txt_cnpj</cstring>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="QLineEdit" name="txt_cnpj">
-           <property name="inputMask">
-            <string>99.999.999/9999-99</string>
-           </property>
-           <property name="placeholderText">
-            <string>00.000.000/0000-00</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel" name="lbl_inscricao_estadual">
-           <property name="font">
-            <font>
-             <family>Segoe UI</family>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>Inscrição Estadual:</string>
-           </property>
-           <property name="buddy">
-            <cstring>txt_inscricao_estadual</cstring>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="1">
-          <widget class="QLineEdit" name="txt_inscricao_estadual">
-           <property name="placeholderText">
-            <string>Número da inscrição estadual</string>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="0">
-          <widget class="QLabel" name="lbl_contato">
-           <property name="font">
-            <font>
-             <family>Segoe UI</family>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>Contato:</string>
-           </property>
-           <property name="buddy">
-            <cstring>txt_contato</cstring>
-           </property>
-          </widget>
-         </item>
-         <item row="3" column="1">
-          <widget class="QLineEdit" name="txt_contato">
-           <property name="placeholderText">
-            <string>Nome da pessoa de contato</string>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="0">
-          <widget class="QLabel" name="lbl_telefone">
-           <property name="font">
-            <font>
-             <family>Segoe UI</family>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>Telefone:</string>
-           </property>
-           <property name="buddy">
-            <cstring>txt_telefone</cstring>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="1">
-          <widget class="QLineEdit" name="txt_telefone">
-           <property name="inputMask">
-            <string>(99) 99999-9999</string>
-           </property>
-           <property name="placeholderText">
-            <string>(00) 00000-0000</string>
-           </property>
-          </widget>
-         </item>
-         <item row="5" column="0">
-          <widget class="QLabel" name="lbl_email">
-           <property name="font">
-            <font>
-             <family>Segoe UI</family>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>E-mail:</string>
-           </property>
-           <property name="buddy">
-            <cstring>txt_email</cstring>
-           </property>
-          </widget>
-         </item>
-         <item row="5" column="1">
-          <widget class="QLineEdit" name="txt_email">
-           <property name="placeholderText">
-            <string>exemplo@empresa.com</string>
-           </property>
-          </widget>
-         </item>
-         <item row="6" column="0">
-          <widget class="QLabel" name="lbl_observacoes">
-           <property name="font">
-            <font>
-             <family>Segoe UI</family>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>Observações:</string>
-           </property>
-           <property name="buddy">
-            <cstring>txt_observacoes</cstring>
-           </property>
-          </widget>
-         </item>
-         <item row="6" column="1">
-          <widget class="QTextEdit" name="txt_observacoes">
-           <property name="maximumSize">
-            <size>
-             <width>16777215</width>
-             <height>100</height>
-            </size>
-           </property>
-           <property name="placeholderText">
-            <string>Observações adicionais sobre o fornecedor</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="tab_lista">
-      <attribute name="title">
-       <string>Lista de Fornecedores</string>
-      </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_3">
-       <property name="spacing">
-        <number>20</number>
-       </property>
-       <property name="leftMargin">
-        <number>20</number>
-       </property>
-       <property name="topMargin">
-        <number>20</number>
-       </property>
-       <property name="rightMargin">
-        <number>20</number>
-       </property>
-       <property name="bottomMargin">
-        <number>20</number>
-       </property>
-       <item>
-        <widget class="QTableView" name="tbl_fornecedores">
-         <property name="alternatingRowColors">
-          <bool>true</bool>
-         </property>
-         <property name="selectionBehavior">
-          <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
-         </property>
-         <attribute name="horizontalHeaderStretchLastSection">
-          <bool>true</bool>
-         </attribute>
-         <attribute name="verticalHeaderVisible">
-          <bool>false</bool>
-         </attribute>
+      </property>
+      <property name="leftMargin">
+        <number>24</number>
+      </property>
+      <property name="topMargin">
+        <number>24</number>
+      </property>
+      <property name="rightMargin">
+        <number>24</number>
+      </property>
+      <property name="bottomMargin">
+        <number>24</number>
+      </property>
+      <item>
+        <widget class="QLabel" name="lbl_title">
+          <property name="text">
+            <string>Fornecedores</string>
+          </property>
+          <property name="alignment">
+            <set>Qt::AlignmentFlag::AlignLeft | Qt::AlignmentFlag::AlignVCenter</set>
+          </property>
         </widget>
-       </item>
-      </layout>
-     </widget>
-    </widget>
-   </item>
-  </layout>
- </widget>
- <tabstops>
-  <tabstop>btn_novo</tabstop>
-  <tabstop>btn_salvar</tabstop>
-  <tabstop>btn_excluir</tabstop>
-  <tabstop>txt_buscar</tabstop>
-  <tabstop>btn_buscar</tabstop>
-  <tabstop>tab_widget</tabstop>
-  <tabstop>txt_razao_social</tabstop>
-  <tabstop>txt_cnpj</tabstop>
-  <tabstop>txt_inscricao_estadual</tabstop>
-  <tabstop>txt_contato</tabstop>
-  <tabstop>txt_telefone</tabstop>
-  <tabstop>txt_email</tabstop>
-  <tabstop>txt_observacoes</tabstop>
-  <tabstop>tbl_fornecedores</tabstop>
- </tabstops>
- <resources/>
- <connections/>
+      </item>
+      <item>
+        <layout class="QHBoxLayout" name="horizontalLayout">
+          <property name="spacing">
+            <number>10</number>
+          </property>
+          <property name="leftMargin">
+            <number>0</number>
+          </property>
+          <property name="topMargin">
+            <number>0</number>
+          </property>
+          <property name="rightMargin">
+            <number>0</number>
+          </property>
+          <property name="bottomMargin">
+            <number>0</number>
+          </property>
+          <item>
+            <widget class="QPushButton" name="btn_novo">
+              <property name="minimumSize">
+                <size>
+                  <width>0</width>
+                  <height>40</height>
+                </size>
+              </property>
+              <property name="font">
+                <font>
+                  <family>Segoe UI</family>
+                  <pointsize>10</pointsize>
+                </font>
+              </property>
+              <property name="cursor">
+                <cursorShape>PointingHandCursor</cursorShape>
+              </property>
+              <property name="toolTip">
+                <string>Adicionar novo fornecedor</string>
+              </property>
+              <property name="text">
+                <string>Novo</string>
+              </property>
+            </widget>
+          </item>
+          <item>
+            <widget class="QPushButton" name="btn_salvar">
+              <property name="minimumSize">
+                <size>
+                  <width>0</width>
+                  <height>40</height>
+                </size>
+              </property>
+              <property name="font">
+                <font>
+                  <family>Segoe UI</family>
+                  <pointsize>10</pointsize>
+                </font>
+              </property>
+              <property name="cursor">
+                <cursorShape>PointingHandCursor</cursorShape>
+              </property>
+              <property name="toolTip">
+                <string>Salvar fornecedor atual</string>
+              </property>
+              <property name="text">
+                <string>Salvar</string>
+              </property>
+            </widget>
+          </item>
+          <item>
+            <widget class="QPushButton" name="btn_excluir">
+              <property name="minimumSize">
+                <size>
+                  <width>0</width>
+                  <height>40</height>
+                </size>
+              </property>
+              <property name="font">
+                <font>
+                  <family>Segoe UI</family>
+                  <pointsize>10</pointsize>
+                </font>
+              </property>
+              <property name="cursor">
+                <cursorShape>PointingHandCursor</cursorShape>
+              </property>
+              <property name="toolTip">
+                <string>Excluir fornecedor selecionado</string>
+              </property>
+              <property name="text">
+                <string>Excluir</string>
+              </property>
+            </widget>
+          </item>
+          <item>
+            <spacer name="horizontalSpacer">
+              <property name="orientation">
+                <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+                <size>
+                  <width>40</width>
+                  <height>20</height>
+                </size>
+              </property>
+            </spacer>
+          </item>
+          <item>
+            <widget class="QLineEdit" name="txt_buscar">
+              <property name="minimumSize">
+                <size>
+                  <width>250</width>
+                  <height>40</height>
+                </size>
+              </property>
+              <property name="placeholderText">
+                <string>Buscar fornecedor...</string>
+              </property>
+            </widget>
+          </item>
+          <item>
+            <widget class="QPushButton" name="btn_buscar">
+              <property name="minimumSize">
+                <size>
+                  <width>0</width>
+                  <height>40</height>
+                </size>
+              </property>
+              <property name="font">
+                <font>
+                  <family>Segoe UI</family>
+                  <pointsize>10</pointsize>
+                </font>
+              </property>
+              <property name="cursor">
+                <cursorShape>PointingHandCursor</cursorShape>
+              </property>
+              <property name="toolTip">
+                <string>Buscar fornecedores</string>
+              </property>
+              <property name="text">
+                <string>Buscar</string>
+              </property>
+            </widget>
+          </item>
+        </layout>
+      </item>
+      <item>
+        <widget class="QTabWidget" name="tab_widget">
+          <property name="currentIndex">
+            <number>0</number>
+          </property>
+          <widget class="QWidget" name="tab_dados">
+            <attribute name="title">
+              <string>Dados do Fornecedor</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="verticalLayout_2">
+              <property name="spacing">
+                <number>20</number>
+              </property>
+              <property name="leftMargin">
+                <number>20</number>
+              </property>
+              <property name="topMargin">
+                <number>20</number>
+              </property>
+              <property name="rightMargin">
+                <number>20</number>
+              </property>
+              <property name="bottomMargin">
+                <number>20</number>
+              </property>
+              <item>
+                <layout class="QFormLayout" name="formLayout">
+                  <property name="horizontalSpacing">
+                    <number>20</number>
+                  </property>
+                  <property name="verticalSpacing">
+                    <number>15</number>
+                  </property>
+                  <property name="leftMargin">
+                    <number>0</number>
+                  </property>
+                  <property name="topMargin">
+                    <number>0</number>
+                  </property>
+                  <property name="rightMargin">
+                    <number>0</number>
+                  </property>
+                  <property name="bottomMargin">
+                    <number>0</number>
+                  </property>
+                  <item row="0" column="0">
+                    <widget class="QLabel" name="lbl_razao_social">
+                      <property name="font">
+                        <font>
+                          <family>Segoe UI</family>
+                          <pointsize>10</pointsize>
+                        </font>
+                      </property>
+                      <property name="text">
+                        <string>Razão Social:</string>
+                      </property>
+                      <property name="buddy">
+                        <cstring>txt_razao_social</cstring>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="0" column="1">
+                    <widget class="QLineEdit" name="txt_razao_social">
+                      <property name="placeholderText">
+                        <string>Nome completo da empresa</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="1" column="0">
+                    <widget class="QLabel" name="lbl_cnpj">
+                      <property name="font">
+                        <font>
+                          <family>Segoe UI</family>
+                          <pointsize>10</pointsize>
+                        </font>
+                      </property>
+                      <property name="text">
+                        <string>CNPJ:</string>
+                      </property>
+                      <property name="buddy">
+                        <cstring>txt_cnpj</cstring>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="1" column="1">
+                    <widget class="QLineEdit" name="txt_cnpj">
+                      <property name="inputMask">
+                        <string>99.999.999/9999-99</string>
+                      </property>
+                      <property name="placeholderText">
+                        <string>00.000.000/0000-00</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="2" column="0">
+                    <widget class="QLabel" name="lbl_inscricao_estadual">
+                      <property name="font">
+                        <font>
+                          <family>Segoe UI</family>
+                          <pointsize>10</pointsize>
+                        </font>
+                      </property>
+                      <property name="text">
+                        <string>Inscrição Estadual:</string>
+                      </property>
+                      <property name="buddy">
+                        <cstring>txt_inscricao_estadual</cstring>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="2" column="1">
+                    <widget class="QLineEdit" name="txt_inscricao_estadual">
+                      <property name="placeholderText">
+                        <string>Número da inscrição estadual</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="3" column="0">
+                    <widget class="QLabel" name="lbl_contato">
+                      <property name="font">
+                        <font>
+                          <family>Segoe UI</family>
+                          <pointsize>10</pointsize>
+                        </font>
+                      </property>
+                      <property name="text">
+                        <string>Contato:</string>
+                      </property>
+                      <property name="buddy">
+                        <cstring>txt_contato</cstring>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="3" column="1">
+                    <widget class="QLineEdit" name="txt_contato">
+                      <property name="placeholderText">
+                        <string>Nome da pessoa de contato</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="4" column="0">
+                    <widget class="QLabel" name="lbl_telefone">
+                      <property name="font">
+                        <font>
+                          <family>Segoe UI</family>
+                          <pointsize>10</pointsize>
+                        </font>
+                      </property>
+                      <property name="text">
+                        <string>Telefone:</string>
+                      </property>
+                      <property name="buddy">
+                        <cstring>txt_telefone</cstring>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="4" column="1">
+                    <widget class="QLineEdit" name="txt_telefone">
+                      <property name="inputMask">
+                        <string>(99) 99999-9999</string>
+                      </property>
+                      <property name="placeholderText">
+                        <string>(00) 00000-0000</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="5" column="0">
+                    <widget class="QLabel" name="lbl_email">
+                      <property name="font">
+                        <font>
+                          <family>Segoe UI</family>
+                          <pointsize>10</pointsize>
+                        </font>
+                      </property>
+                      <property name="text">
+                        <string>E-mail:</string>
+                      </property>
+                      <property name="buddy">
+                        <cstring>txt_email</cstring>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="5" column="1">
+                    <widget class="QLineEdit" name="txt_email">
+                      <property name="placeholderText">
+                        <string>exemplo@empresa.com</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="6" column="0">
+                    <widget class="QLabel" name="lbl_observacoes">
+                      <property name="font">
+                        <font>
+                          <family>Segoe UI</family>
+                          <pointsize>10</pointsize>
+                        </font>
+                      </property>
+                      <property name="text">
+                        <string>Observações:</string>
+                      </property>
+                      <property name="buddy">
+                        <cstring>txt_observacoes</cstring>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="6" column="1">
+                    <widget class="QTextEdit" name="txt_observacoes">
+                      <property name="maximumSize">
+                        <size>
+                          <width>16777215</width>
+                          <height>100</height>
+                        </size>
+                      </property>
+                      <property name="placeholderText">
+                        <string>Observações adicionais sobre o fornecedor</string>
+                      </property>
+                    </widget>
+                  </item>
+                </layout>
+              </item>
+            </layout>
+          </widget>
+          <widget class="QWidget" name="tab_lista">
+            <attribute name="title">
+              <string>Lista de Fornecedores</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="verticalLayout_3">
+              <property name="spacing">
+                <number>20</number>
+              </property>
+              <property name="leftMargin">
+                <number>20</number>
+              </property>
+              <property name="topMargin">
+                <number>20</number>
+              </property>
+              <property name="rightMargin">
+                <number>20</number>
+              </property>
+              <property name="bottomMargin">
+                <number>20</number>
+              </property>
+              <item>
+                <widget class="QTableView" name="tbl_fornecedores">
+                  <property name="alternatingRowColors">
+                    <bool>true</bool>
+                  </property>
+                  <property name="selectionBehavior">
+                    <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+                  </property>
+                  <attribute name="horizontalHeaderStretchLastSection">
+                    <bool>true</bool>
+                  </attribute>
+                  <attribute name="verticalHeaderVisible">
+                    <bool>false</bool>
+                  </attribute>
+                </widget>
+              </item>
+            </layout>
+          </widget>
+        </widget>
+      </item>
+    </layout>
+  </widget>
+  <tabstops>
+    <tabstop>btn_novo</tabstop>
+    <tabstop>btn_salvar</tabstop>
+    <tabstop>btn_excluir</tabstop>
+    <tabstop>txt_buscar</tabstop>
+    <tabstop>btn_buscar</tabstop>
+    <tabstop>tab_widget</tabstop>
+    <tabstop>txt_razao_social</tabstop>
+    <tabstop>txt_cnpj</tabstop>
+    <tabstop>txt_inscricao_estadual</tabstop>
+    <tabstop>txt_contato</tabstop>
+    <tabstop>txt_telefone</tabstop>
+    <tabstop>txt_email</tabstop>
+    <tabstop>txt_observacoes</tabstop>
+    <tabstop>tbl_fornecedores</tabstop>
+  </tabstops>
+  <resources />
+  <connections />
 </ui>
