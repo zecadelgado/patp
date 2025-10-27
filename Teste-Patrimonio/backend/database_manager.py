@@ -460,31 +460,61 @@ class DatabaseManager:
         """
         return self.fetch_all(query, (limit,))
 
-    def calcular_depreciacao(self, vida_util_anos=10):
-        patrimonios = self.list_patrimonios()
+    def calcular_depreciacao(self, vida_util_anos: int = 10, filters: Optional[Dict[str, Any]] = None):
+        """Calcula os valores de depreciação para os patrimônios cadastrados.
+
+        A função aplica um modelo simples de depreciação linear considerando uma vida útil
+        média (em anos). Opcionalmente é possível filtrar os patrimônios pelo mesmo formato
+        aceito em :py:meth:`list_patrimonios`.
+
+        Parameters
+        ----------
+        vida_util_anos: int
+            Vida útil média utilizada para o cálculo linear. O padrão é ``10`` anos.
+        filters: dict, optional
+            Dicionário de filtros, aceitando ``texto`` e ``id_categoria`` entre outros
+            campos utilizados por :py:meth:`list_patrimonios`.
+        """
+
+        list_filters = filters or {}
+        patrimonios = self.list_patrimonios(list_filters if list_filters else None)
         hoje = date.today()
+        vida_util_meses = max(int(vida_util_anos) * 12, 1)
         linhas = []
+
         for item in patrimonios:
             valor = item.get("valor_compra") or Decimal("0")
             if not isinstance(valor, Decimal):
                 valor = Decimal(str(valor or "0"))
+
             aquisicao = item.get("data_aquisicao")
             if isinstance(aquisicao, datetime):
                 aquisicao = aquisicao.date()
-            if not isinstance(aquisicao, date):
-                anos_em_uso = 0
+
+            if isinstance(aquisicao, date):
+                meses_em_uso = max((hoje.year - aquisicao.year) * 12 + (hoje.month - aquisicao.month), 0)
             else:
-                anos_em_uso = max((hoje - aquisicao).days // 365, 0)
-            depreciacao_anual = valor / vida_util_anos if vida_util_anos else Decimal("0")
-            acumulado = depreciacao_anual * anos_em_uso
+                meses_em_uso = 0
+
+            depreciacao_mensal = valor / vida_util_meses if vida_util_meses else Decimal("0")
+            acumulado = depreciacao_mensal * Decimal(meses_em_uso)
             if acumulado > valor:
                 acumulado = valor
+
+            valor_periodo = depreciacao_mensal
+            if acumulado >= valor:
+                valor_periodo = Decimal("0")
+            elif acumulado + depreciacao_mensal > valor:
+                valor_periodo = valor - acumulado
+
             linhas.append(
                 {
                     "patrimonio": item.get("nome"),
+                    "categoria": item.get("nome_categoria"),
                     "competencia": hoje.strftime("%Y-%m"),
-                    "valor_periodo": float(depreciacao_anual),
+                    "valor_periodo": float(valor_periodo),
                     "valor_acumulado": float(acumulado),
                 }
             )
+
         return linhas
