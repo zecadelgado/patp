@@ -263,7 +263,8 @@ class ManutencaoController:
         if self.de_inicio:
             self.de_inicio.setDate(QDate.fromPython(today))
         if self.de_fim:
-            self.de_fim.setDate(QDate.fromPython(today))
+            self.de_fim.setSpecialValueText("")
+            self.de_fim.setDate(QDate())
         if self.dsb_custo:
             self.dsb_custo.setValue(0.0)
         if self.le_empresa:
@@ -282,8 +283,12 @@ class ManutencaoController:
                 self.cb_tipo.setCurrentIndex(index)
         if self.de_inicio and record.data_inicio:
             self.de_inicio.setDate(QDate.fromPython(record.data_inicio))
-        if self.de_fim and record.data_fim:
-            self.de_fim.setDate(QDate.fromPython(record.data_fim))
+        if self.de_fim:
+            if record.data_fim:
+                self.de_fim.setDate(QDate.fromPython(record.data_fim))
+            else:
+                self.de_fim.setSpecialValueText("")
+                self.de_fim.setDate(QDate())
         if self.dsb_custo and record.custo is not None:
             self.dsb_custo.setValue(float(record.custo))
         if self.le_empresa:
@@ -300,8 +305,17 @@ class ManutencaoController:
             QMessageBox.warning(self.widget, "Manutenções", "Selecione um patrimônio válido.")
             return None
 
-        data_inicio = self.de_inicio.date().toPython() if self.de_inicio else datetime.date.today()
-        data_fim = self.de_fim.date().toPython() if self.de_fim else None
+        qt_inicio = self.de_inicio.date() if self.de_inicio else QDate.fromPython(datetime.date.today())
+        data_inicio = (
+            qt_inicio.toPython() if qt_inicio and qt_inicio.isValid() else datetime.date.today()
+        )
+
+        data_fim = None
+        if self.de_fim:
+            qt_fim = self.de_fim.date()
+            if qt_fim and qt_fim.isValid():
+                data_fim = qt_fim.toPython()
+
         if data_fim and data_fim < data_inicio:
             QMessageBox.warning(
                 self.widget,
