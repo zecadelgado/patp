@@ -1,190 +1,357 @@
-# Conteúdo completo do patrimonio_controller.py
-from PySide6.QtWidgets import QWidget, QMessageBox, QTableWidget, QTableWidgetItem, QDialog, QVBoxLayout, QFormLayout, QLineEdit, QDateEdit, QDoubleSpinBox, QComboBox, QPushButton
-from PySide6.QtCore import QDate, QDateTime
+from __future__ import annotations
+
 import datetime
+from typing import Optional, Sequence
+
+from PySide6.QtCore import QDate
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDateEdit,
+    QDialog,
+    QDoubleSpinBox,
+    QFormLayout,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
 from database_manager import DatabaseManager
-import math
+
 
 class PatrimonioController(QWidget):
-    def __init__(self, ui_widget: QWidget, db_manager: DatabaseManager):
+    """Controller responsavel por orquestrar a tela de patrimonio."""
+
+    TABLE_HEADERS: Sequence[str] = (
+        "ID",
+        "Nome",
+        "Descricao",
+        "Numero de Serie",
+        "Data de Aquisicao",
+        "Valor Compra",
+        "Valor Atual",
+        "Categoria",
+        "Fornecedor",
+        "Setor/Local",
+        "Status",
+    )
+
+    STATUS_OPTIONS: Sequence[str] = ("ativo", "baixado", "em_manutencao", "desaparecido")
+    ESTADO_CONSERVACAO_OPTIONS: Sequence[str] = ("novo", "bom", "regular", "ruim")
+
+    def __init__(self, ui_widget: QWidget, db_manager: DatabaseManager) -> None:
         super().__init__()
         self.ui = ui_widget
         self.db_manager = db_manager
-        self.setup_ui_connections()
-        self.load_patrimonios()
+
+        self.table: Optional[QTableWidget] = self.ui.findChild(QTableWidget, "tbl_patrimonio")
+        self.search_input: Optional[QLineEdit] = self.ui.findChild(QLineEdit, "le_busca")
+        self.category_filter: Optional[QComboBox] = self.ui.findChild(QComboBox, "cb_categoria")
+        self.sector_filter: Optional[QComboBox] = self.ui.findChild(QComboBox, "cb_setor")
+        self.status_filter: Optional[QComboBox] = self.ui.findChild(QComboBox, "cb_status")
+
+        if self.table:
+            self.table.setColumnCount(len(self.TABLE_HEADERS))
+            self.table.setHorizontalHeaderLabels(self.TABLE_HEADERS)
+
+        self.has_valor_atual_column = self._check_valor_atual_column()
+
+        self._setup_ui_connections()
         self.populate_comboboxes()
-
-    def setup_ui_connections(self):
-        self.ui.findChild(QPushButton, "btn_novo").clicked.connect(self.abrir_cadastro_patrimonio)
-        self.ui.findChild(QPushButton, "btn_editar").clicked.connect(self.editar_patrimonio)
-        self.ui.findChild(QPushButton, "btn_excluir").clicked.connect(self.excluir_patrimonio) # Baixa de patrimônio
-        self.ui.findChild(QPushButton, "btn_filtrar").clicked.connect(self.load_patrimonios)
-        self.ui.findChild(QPushButton, "btn_limpar").clicked.connect(self.limpar_filtros)
-
-    def populate_comboboxes(self):
-        cb_categoria = self.ui.findChild(QComboBox, "cb_categoria")
-        cb_setor = self.ui.findChild(QComboBox, "cb_setor")
-        cb_status = self.ui.findChild(QComboBox, "cb_status")
-
-        if cb_categoria:
-            cb_categoria.clear()
-            cb_categoria.addItem("Categoria") # Placeholder
-            categorias = self.db_manager.fetch_all("SELECT nome_categoria FROM categorias")
-            for cat in categorias: cb_categoria.addItem(cat[0])
-        
-        if cb_setor:
-            cb_setor.clear()
-            cb_setor.addItem("Setor") # Placeholder
-            setores = self.db_manager.fetch_all("SELECT nome_setor_local FROM setores_locais")
-            for setor in setores: cb_setor.addItem(setor[0])
-
-        if cb_status:
-            cb_status.clear()
-            cb_status.addItem("Status") # Placeholder
-            cb_status.addItems(["ativo", "baixado", "em_manutencao", "desaparecido"])
-
-    def load_patrimonios(self):
-        # Lógica para atualizar o valor_atual no banco de dados antes de exibir
-        self.atualizar_valores_depreciados()
-        
-        table = self.ui.findChild(QTableWidget, "tbl_patrimonio")
-        if not table: return
-
-        table.setRowCount(0)
-        
-        query = """
-            SELECT 
-                p.id_patrimonio, p.nome, p.descricao, p.numero_serie, p.data_aquisicao, p.valor_compra, 
-                c.nome_categoria, f.nome_fornecedor, sl.nome_setor_local, p.status
-            FROM 
-                patrimonios p
-            LEFT JOIN 
-                categorias c ON p.id_categoria = c.id_categoria
-            LEFT JOIN 
-                fornecedores f ON p.id_fornecedor = f.id_fornecedor
-            LEFT JOIN 
-                setores_locais sl ON p.id_setor_local = sl.id_setor_local
-            WHERE 1=1
-        """
-        params = []
-
-        busca = self.ui.findChild(QLineEdit, "le_busca").text()
-        if busca:
-            query += " AND (p.nome LIKE %s OR p.descricao LIKE %s OR p.numero_serie LIKE %s)"
-            params.extend([f"%{busca}%", f"%{busca}%", f"%{busca}%"])
-
-        categoria = self.ui.findChild(QComboBox, "cb_categoria").currentText()
-        if categoria and categoria != "Categoria":
-            query += " AND c.nome_categoria = %s"
-            params.append(categoria)
-
-        setor = self.ui.findChild(QComboBox, "cb_setor").currentText()
-        if setor and setor != "Setor":
-            query += " AND sl.nome_setor_local = %s"
-            params.append(setor)
-
-        status = self.ui.findChild(QComboBox, "cb_status").currentText()
-        if status and status != "Status":
-            query += " AND p.status = %s"
-            params.append(status)
-
-        patrimonios = self.db_manager.fetch_all(query, tuple(params))
-        
-        if patrimonios:
-            table.setRowCount(len(patrimonios))
-            # Definir cabeçalhos da tabela, incluindo a nova coluna de Valor Atual
-            headers = ["ID", "Nome", "Descrição", "Número de Série", "Data Aquisição", "Valor Compra", "Valor Atual", "Categoria", "Fornecedor", "Setor/Local", "Status"]
-            table.setColumnCount(len(headers))
-            table.setHorizontalHeaderLabels(headers)
-
-            for row_idx, patrimonio in enumerate(patrimonios):
-                
-                # Adicionar o Valor Atual (que será calculado e atualizado no banco de dados)
-                # O valor atual será o valor_compra (índice 5)
-                valor_compra = float(patrimonio[5])
-                # Busca o valor atualizado no banco de dados
-                valor_atual = self.db_manager.fetch_one("SELECT valor_atual FROM patrimonios WHERE id_patrimonio = %s", (patrimonio[0],))[0]
-                
-                # Ajustar os índices para a nova coluna 'Valor Atual'
-                table.setItem(row_idx, 0, QTableWidgetItem(str(patrimonio[0]))) # ID
-                table.setItem(row_idx, 1, QTableWidgetItem(str(patrimonio[1]))) # Nome
-                table.setItem(row_idx, 2, QTableWidgetItem(str(patrimonio[2]))) # Descrição
-                table.setItem(row_idx, 3, QTableWidgetItem(str(patrimonio[3]))) # Número de Série
-                table.setItem(row_idx, 4, QTableWidgetItem(str(patrimonio[4]))) # Data Aquisição
-                table.setItem(row_idx, 5, QTableWidgetItem(f"R$ {valor_compra:.2f}")) # Valor Compra
-                table.setItem(row_idx, 6, QTableWidgetItem(f"R$ {valor_atual:.2f}")) # Valor Atual (NOVO)
-                table.setItem(row_idx, 7, QTableWidgetItem(str(patrimonio[6]))) # Categoria
-                table.setItem(row_idx, 8, QTableWidgetItem(str(patrimonio[7]))) # Fornecedor
-                table.setItem(row_idx, 9, QTableWidgetItem(str(patrimonio[8]))) # Setor/Local
-                table.setItem(row_idx, 10, QTableWidgetItem(str(patrimonio[9]))) # Status
-
-        table.resizeColumnsToContents()
-
-    def limpar_filtros(self):
-        self.ui.findChild(QLineEdit, "le_busca").clear()
-        self.ui.findChild(QComboBox, "cb_categoria").setCurrentIndex(0)
-        self.ui.findChild(QComboBox, "cb_setor").setCurrentIndex(0)
-        self.ui.findChild(QComboBox, "cb_status").setCurrentIndex(0)
         self.load_patrimonios()
 
-    def abrir_cadastro_patrimonio(self):
+    # --------------------------------------------------------------------- #
+    # Helpers
+    # --------------------------------------------------------------------- #
+    def _setup_ui_connections(self) -> None:
+        button_map = {
+            "btn_novo": self.abrir_cadastro_patrimonio,
+            "btn_editar": self.editar_patrimonio,
+            "btn_excluir": self.excluir_patrimonio,
+            "btn_filtrar": self.load_patrimonios,
+            "btn_limpar": self.limpar_filtros,
+        }
+
+        for object_name, handler in button_map.items():
+            button = self.ui.findChild(QPushButton, object_name)
+            if button is None:
+                print(f"[PatrimonioController] Botao '{object_name}' nao encontrado na UI.")
+                continue
+            button.clicked.connect(handler)  # type: ignore[arg-type]
+
+    def _check_valor_atual_column(self) -> bool:
+        try:
+            result = self.db_manager.fetch_one("SHOW COLUMNS FROM patrimonios LIKE %s", ("valor_atual",))
+            return bool(result)
+        except Exception as exc:  # pragma: no cover - apenas log de seguranca
+            print(f"[PatrimonioController] Falha ao verificar coluna valor_atual: {exc}")
+            return False
+
+    def _populate_fk_combo(
+        self,
+        combo: QComboBox,
+        placeholder: str,
+        query: str,
+        value_key: str,
+        label_key: str,
+        current_value: Optional[int] = None,
+    ) -> None:
+        combo.clear()
+        combo.addItem(placeholder, None)
+
+        rows = self.db_manager.fetch_all(query)
+        for row in rows:
+            value = row.get(value_key)
+            label = row.get(label_key)
+            if value is None or label is None:
+                continue
+            combo.addItem(str(label), value)
+
+        if current_value is not None:
+            index = combo.findData(current_value)
+            if index >= 0:
+                combo.setCurrentIndex(index)
+
+    @staticmethod
+    def _format_currency(value: Optional[float]) -> str:
+        try:
+            return f"R$ {float(value):.2f}"
+        except (TypeError, ValueError):
+            return "R$ 0.00"
+
+    @staticmethod
+    def _format_date(value: Optional[datetime.date]) -> str:
+        if value is None:
+            return "-"
+        if isinstance(value, datetime.datetime):
+            value = value.date()
+        return value.strftime("%d/%m/%Y")
+
+    # --------------------------------------------------------------------- #
+    # Combos e filtros
+    # --------------------------------------------------------------------- #
+    def populate_comboboxes(self) -> None:
+        if self.category_filter:
+            self.category_filter.clear()
+            self.category_filter.addItem("Categoria", None)
+            for row in self.db_manager.fetch_all("SELECT nome_categoria FROM categorias ORDER BY nome_categoria"):
+                nome = row.get("nome_categoria")
+                if nome:
+                    self.category_filter.addItem(str(nome), nome)
+
+        if self.sector_filter:
+            self.sector_filter.clear()
+            self.sector_filter.addItem("Setor", None)
+            for row in self.db_manager.fetch_all(
+                "SELECT nome_setor_local FROM setores_locais ORDER BY nome_setor_local"
+            ):
+                nome = row.get("nome_setor_local")
+                if nome:
+                    self.sector_filter.addItem(str(nome), nome)
+
+        if self.status_filter:
+            self.status_filter.clear()
+            self.status_filter.addItem("Status", None)
+            self.status_filter.addItems(self.STATUS_OPTIONS)
+
+    def limpar_filtros(self) -> None:
+        if self.search_input:
+            self.search_input.clear()
+        if self.category_filter:
+            self.category_filter.setCurrentIndex(0)
+        if self.sector_filter:
+            self.sector_filter.setCurrentIndex(0)
+        if self.status_filter:
+            self.status_filter.setCurrentIndex(0)
+        self.load_patrimonios()
+
+    # --------------------------------------------------------------------- #
+    # Carregamento de dados
+    # --------------------------------------------------------------------- #
+    def load_patrimonios(self) -> None:
+        if self.has_valor_atual_column:
+            self.atualizar_valores_depreciados()
+
+        if not self.table:
+            return
+
+        query_parts = [
+            "SELECT",
+            "    p.id_patrimonio,",
+            "    p.nome AS nome_patrimonio,",
+            "    p.descricao,",
+            "    p.numero_serie,",
+            "    p.data_aquisicao,",
+            "    p.valor_compra,",
+        ]
+
+        if self.has_valor_atual_column:
+            query_parts.append("    p.valor_atual,")
+        else:
+            query_parts.append("    NULL AS valor_atual,")
+
+        query_parts.extend(
+            [
+                "    c.nome_categoria,",
+                "    f.nome_fornecedor,",
+                "    sl.nome_setor_local,",
+                "    p.status",
+                "FROM patrimonios p",
+                "LEFT JOIN categorias c ON p.id_categoria = c.id_categoria",
+                "LEFT JOIN fornecedores f ON p.id_fornecedor = f.id_fornecedor",
+                "LEFT JOIN setores_locais sl ON p.id_setor_local = sl.id_setor_local",
+                "WHERE 1=1",
+            ]
+        )
+
+        params: list[object] = []
+
+        if self.search_input:
+            busca = self.search_input.text().strip()
+            if busca:
+                query_parts.append(
+                    "  AND (p.nome LIKE %s OR p.descricao LIKE %s OR p.numero_serie LIKE %s)"
+                )
+                wildcard = f"%{busca}%"
+                params.extend([wildcard, wildcard, wildcard])
+
+        if self.category_filter:
+            categoria = self.category_filter.currentText()
+            if categoria and categoria not in ("", "Categoria"):
+                query_parts.append("  AND c.nome_categoria = %s")
+                params.append(categoria)
+
+        if self.sector_filter:
+            setor = self.sector_filter.currentText()
+            if setor and setor not in ("", "Setor"):
+                query_parts.append("  AND sl.nome_setor_local = %s")
+                params.append(setor)
+
+        if self.status_filter:
+            status = self.status_filter.currentText()
+            if status and status not in ("", "Status"):
+                query_parts.append("  AND p.status = %s")
+                params.append(status)
+
+        query_parts.append("ORDER BY p.nome ASC")
+        query = "\n".join(query_parts)
+
+        patrimonios = self.db_manager.fetch_all(query, tuple(params) if params else None)
+
+        self.table.setRowCount(0)
+        self.table.setRowCount(len(patrimonios))
+
+        for row_index, item in enumerate(patrimonios):
+            valor_compra = item.get("valor_compra")
+            valor_compra = float(valor_compra) if valor_compra is not None else 0.0
+
+            data_aquisicao = item.get("data_aquisicao")
+            valor_atual_registrado = item.get("valor_atual")
+
+            if valor_atual_registrado is not None:
+                valor_atual = float(valor_atual_registrado)
+            else:
+                valor_atual = self.calcular_depreciacao(data_aquisicao, valor_compra)
+
+            table_values = [
+                item.get("id_patrimonio"),
+                item.get("nome_patrimonio"),
+                item.get("descricao"),
+                item.get("numero_serie"),
+                self._format_date(data_aquisicao),
+                self._format_currency(valor_compra),
+                self._format_currency(valor_atual),
+                item.get("nome_categoria") or "-",
+                item.get("nome_fornecedor") or "-",
+                item.get("nome_setor_local") or "-",
+                item.get("status") or "-",
+            ]
+
+            for column, value in enumerate(table_values):
+                text = "" if value is None else str(value)
+                self.table.setItem(row_index, column, QTableWidgetItem(text))
+
+        self.table.resizeColumnsToContents()
+
+    # --------------------------------------------------------------------- #
+    # Dialogo de cadastro
+    # --------------------------------------------------------------------- #
+    def abrir_cadastro_patrimonio(self) -> None:
         dialog = QDialog(self.ui)
-        dialog.setWindowTitle("Cadastrar Novo Patrimônio")
+        dialog.setWindowTitle("Cadastrar novo patrimonio")
+
         layout = QVBoxLayout()
         form_layout = QFormLayout()
 
         self.nome_input = QLineEdit()
         self.descricao_input = QLineEdit()
         self.numero_serie_input = QLineEdit()
+
         self.data_aquisicao_input = QDateEdit(QDate.currentDate())
         self.data_aquisicao_input.setCalendarPopup(True)
+
         self.valor_compra_input = QDoubleSpinBox()
         self.valor_compra_input.setPrefix("R$ ")
-        self.valor_compra_input.setMaximum(99999999.99)
+        self.valor_compra_input.setDecimals(2)
+        self.valor_compra_input.setMaximum(999_999_999.99)
+
         self.estado_conservacao_input = QComboBox()
-        self.estado_conservacao_input.addItems(["novo", "bom", "regular", "ruim"])
+        self.estado_conservacao_input.addItems(self.ESTADO_CONSERVACAO_OPTIONS)
+
         self.categoria_combo = QComboBox()
         self.fornecedor_combo = QComboBox()
         self.setor_local_combo = QComboBox()
         self.status_combo = QComboBox()
-        self.status_combo.addItems(["ativo", "baixado", "em_manutencao", "desaparecido"])
+        self.status_combo.addItems(self.STATUS_OPTIONS)
 
-        # Popula os ComboBoxes de FKs
-        self.categoria_combo.addItem("Selecione uma Categoria")
-        categorias = self.db_manager.fetch_all("SELECT id_categoria, nome_categoria FROM categorias")
-        for cat_id, cat_nome in categorias: self.categoria_combo.addItem(cat_nome, cat_id)
-
-        self.fornecedor_combo.addItem("Selecione um Fornecedor")
-        fornecedores = self.db_manager.fetch_all("SELECT id_fornecedor, nome_fornecedor FROM fornecedores")
-        for forn_id, forn_nome in fornecedores: self.fornecedor_combo.addItem(forn_nome, forn_id)
-
-        self.setor_local_combo.addItem("Selecione um Setor/Local")
-        setores_locais = self.db_manager.fetch_all("SELECT id_setor_local, nome_setor_local FROM setores_locais")
-        for sl_id, sl_nome in setores_locais: self.setor_local_combo.addItem(sl_nome, sl_id)
+        self._populate_fk_combo(
+            self.categoria_combo,
+            "Selecione uma Categoria",
+            "SELECT id_categoria, nome_categoria FROM categorias ORDER BY nome_categoria",
+            "id_categoria",
+            "nome_categoria",
+        )
+        self._populate_fk_combo(
+            self.fornecedor_combo,
+            "Selecione um Fornecedor",
+            "SELECT id_fornecedor, nome_fornecedor FROM fornecedores ORDER BY nome_fornecedor",
+            "id_fornecedor",
+            "nome_fornecedor",
+        )
+        self._populate_fk_combo(
+            self.setor_local_combo,
+            "Selecione um Setor/Local",
+            "SELECT id_setor_local, nome_setor_local FROM setores_locais ORDER BY nome_setor_local",
+            "id_setor_local",
+            "nome_setor_local",
+        )
 
         form_layout.addRow("Nome:", self.nome_input)
-        form_layout.addRow("Descrição:", self.descricao_input)
-        form_layout.addRow("Número de Série:", self.numero_serie_input)
-        form_layout.addRow("Data de Aquisição:", self.data_aquisicao_input)
+        form_layout.addRow("Descricao:", self.descricao_input)
+        form_layout.addRow("Numero de Serie:", self.numero_serie_input)
+        form_layout.addRow("Data de Aquisicao:", self.data_aquisicao_input)
         form_layout.addRow("Valor de Compra:", self.valor_compra_input)
-        form_layout.addRow("Estado de Conservação:", self.estado_conservacao_input)
+        form_layout.addRow("Estado de Conservacao:", self.estado_conservacao_input)
         form_layout.addRow("Categoria:", self.categoria_combo)
         form_layout.addRow("Fornecedor:", self.fornecedor_combo)
         form_layout.addRow("Setor/Local:", self.setor_local_combo)
         form_layout.addRow("Status:", self.status_combo)
 
         btn_salvar = QPushButton("Salvar")
-        btn_salvar.clicked.connect(lambda: self.salvar_patrimonio(dialog))
+        btn_salvar.clicked.connect(lambda: self.salvar_patrimonio(dialog))  # type: ignore[arg-type]
 
         layout.addLayout(form_layout)
         layout.addWidget(btn_salvar)
         dialog.setLayout(layout)
         dialog.exec()
 
-    def salvar_patrimonio(self, dialog):
-        nome = self.nome_input.text()
-        descricao = self.descricao_input.text()
-        numero_serie = self.numero_serie_input.text()
+    def salvar_patrimonio(self, dialog: QDialog) -> None:
+        nome = self.nome_input.text().strip()
+        descricao = self.descricao_input.text().strip()
+        numero_serie = self.numero_serie_input.text().strip()
         data_aquisicao = self.data_aquisicao_input.date().toString("yyyy-MM-dd")
         valor_compra = self.valor_compra_input.value()
         estado_conservacao = self.estado_conservacao_input.currentText()
@@ -193,109 +360,196 @@ class PatrimonioController(QWidget):
         id_setor_local = self.setor_local_combo.currentData()
         status = self.status_combo.currentText()
 
-        if not all([nome, descricao, numero_serie, data_aquisicao, valor_compra is not None, estado_conservacao, id_categoria, id_setor_local, status]):
-            QMessageBox.warning(dialog, "Erro", "Todos os campos obrigatórios devem ser preenchidos.")
+        if not all([nome, numero_serie, id_categoria, id_setor_local, status]):
+            QMessageBox.warning(dialog, "Cadastro", "Preencha os campos obrigatorios.")
             return
-        
-        # Fornecedor pode ser opcional, então verificamos se foi selecionado
-        if id_fornecedor == "Selecione um Fornecedor":
-            id_fornecedor = None
 
-        # O valor atual é igual ao valor de compra no momento do cadastro
         valor_atual = valor_compra
 
-        query = "INSERT INTO patrimonios (nome, descricao, numero_serie, data_aquisicao, valor_compra, valor_atual, estado_conservacao, id_categoria, id_fornecedor, id_setor_local, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
-        params = (nome, descricao, numero_serie, data_aquisicao, valor_compra, valor_atual, estado_conservacao, id_categoria, id_fornecedor, id_setor_local, status)
+        columns = [
+            "nome",
+            "descricao",
+            "numero_serie",
+            "data_aquisicao",
+            "valor_compra",
+            "estado_conservacao",
+            "id_categoria",
+            "id_fornecedor",
+            "id_setor_local",
+            "status",
+        ]
+        params: list[object] = [
+            nome,
+            descricao or None,
+            numero_serie,
+            data_aquisicao,
+            valor_compra,
+            estado_conservacao,
+            id_categoria,
+            id_fornecedor,
+            id_setor_local,
+            status,
+        ]
 
-        if self.db_manager.execute_query(query, params):
-            QMessageBox.information(dialog, "Sucesso", "Patrimônio cadastrado com sucesso!")
+        if self.has_valor_atual_column:
+            columns.insert(5, "valor_atual")
+            params.insert(5, valor_atual)
+
+        placeholders = ", ".join(["%s"] * len(columns))
+        columns_sql = ", ".join(columns)
+
+        query = f"INSERT INTO patrimonios ({columns_sql}) VALUES ({placeholders})"
+
+        if self.db_manager.execute_query(query, tuple(params)):
+            QMessageBox.information(dialog, "Cadastro", "Patrimonio cadastrado com sucesso.")
             dialog.accept()
             self.load_patrimonios()
         else:
-            QMessageBox.critical(dialog, "Erro", "Falha ao cadastrar patrimônio. Verifique o número de série, ele deve ser único.")
+            QMessageBox.critical(
+                dialog,
+                "Cadastro",
+                "Falha ao cadastrar patrimonio. Verifique se o numero de serie ja existe.",
+            )
 
-    def editar_patrimonio(self):
-        table = self.ui.findChild(QTableWidget, "tbl_patrimonio")
-        selected_rows = table.selectionModel().selectedRows()
-        if not selected_rows:
-            QMessageBox.warning(self.ui, "Edição", "Selecione um patrimônio para editar.")
+    # --------------------------------------------------------------------- #
+    # Dialogo de edicao
+    # --------------------------------------------------------------------- #
+    def editar_patrimonio(self) -> None:
+        if not self.table:
             return
-        
-        row = selected_rows[0].row()
-        id_patrimonio_original = int(table.item(row, 0).text()) # ID é a primeira coluna
+
+        selected_rows = self.table.selectionModel().selectedRows() if self.table.selectionModel() else []
+        if not selected_rows:
+            QMessageBox.warning(self.ui, "Edicao", "Selecione um patrimonio para editar.")
+            return
+
+        row_index = selected_rows[0].row()
+        id_item = self.table.item(row_index, 0)
+        if not id_item:
+            QMessageBox.critical(self.ui, "Edicao", "Nao foi possivel identificar o patrimonio selecionado.")
+            return
+
+        try:
+            id_patrimonio = int(id_item.text())
+        except (TypeError, ValueError):
+            QMessageBox.critical(self.ui, "Edicao", "Identificador de patrimonio invalido.")
+            return
+
+        patrimonio = self.db_manager.fetch_one(
+            """
+            SELECT nome, descricao, numero_serie, data_aquisicao, valor_compra,
+                   estado_conservacao, id_categoria, id_fornecedor, id_setor_local, status
+            FROM patrimonios
+            WHERE id_patrimonio = %s
+            """,
+            (id_patrimonio,),
+        )
+
+        if not patrimonio:
+            QMessageBox.critical(self.ui, "Edicao", "Patrimonio nao encontrado.")
+            return
 
         dialog = QDialog(self.ui)
-        dialog.setWindowTitle("Editar Patrimônio")
+        dialog.setWindowTitle("Editar patrimonio")
+
         layout = QVBoxLayout()
         form_layout = QFormLayout()
 
-        # Carregar dados existentes
-        patrimonio_data = self.db_manager.fetch_one("SELECT nome, descricao, numero_serie, data_aquisicao, valor_compra, estado_conservacao, id_categoria, id_fornecedor, id_setor_local, status FROM patrimonios WHERE id_patrimonio = %s", (id_patrimonio_original,))
-        if not patrimonio_data:
-            QMessageBox.critical(self.ui, "Erro", "Patrimônio não encontrado para edição.")
-            return
+        self.nome_input = QLineEdit(patrimonio.get("nome") or "")
+        self.descricao_input = QLineEdit(patrimonio.get("descricao") or "")
+        self.numero_serie_input = QLineEdit(patrimonio.get("numero_serie") or "")
 
-        self.nome_input = QLineEdit(patrimonio_data[0])
-        self.descricao_input = QLineEdit(patrimonio_data[1])
-        self.numero_serie_input = QLineEdit(patrimonio_data[2])
-        self.data_aquisicao_input = QDateEdit(QDate.fromString(str(patrimonio_data[3]), "yyyy-MM-dd"))
+        data_original = patrimonio.get("data_aquisicao")
+        data_qdate = QDate.currentDate()
+        if isinstance(data_original, (datetime.date, datetime.datetime)):
+            if isinstance(data_original, datetime.datetime):
+                data_original = data_original.date()
+            data_qdate = QDate(data_original.year, data_original.month, data_original.day)
+        elif isinstance(data_original, str) and data_original:
+            try:
+                parsed = datetime.datetime.strptime(data_original, "%Y-%m-%d").date()
+                data_qdate = QDate(parsed.year, parsed.month, parsed.day)
+            except ValueError:
+                pass
+
+        self.data_aquisicao_input = QDateEdit(data_qdate)
         self.data_aquisicao_input.setCalendarPopup(True)
+
         self.valor_compra_input = QDoubleSpinBox()
         self.valor_compra_input.setPrefix("R$ ")
-        self.valor_compra_input.setMaximum(99999999.99)
-        self.valor_compra_input.setValue(float(patrimonio_data[4]))
+        self.valor_compra_input.setDecimals(2)
+        self.valor_compra_input.setMaximum(999_999_999.99)
+        valor_compra = patrimonio.get("valor_compra") or 0
+        self.valor_compra_input.setValue(float(valor_compra))
+
         self.estado_conservacao_input = QComboBox()
-        self.estado_conservacao_input.addItems(["novo", "bom", "regular", "ruim"])
-        self.estado_conservacao_input.setCurrentText(patrimonio_data[5])
+        self.estado_conservacao_input.addItems(self.ESTADO_CONSERVACAO_OPTIONS)
+        estado = patrimonio.get("estado_conservacao")
+        if estado:
+            index_estado = self.estado_conservacao_input.findText(str(estado))
+            if index_estado >= 0:
+                self.estado_conservacao_input.setCurrentIndex(index_estado)
+
         self.categoria_combo = QComboBox()
         self.fornecedor_combo = QComboBox()
         self.setor_local_combo = QComboBox()
         self.status_combo = QComboBox()
-        self.status_combo.addItems(["ativo", "baixado", "em_manutencao", "desaparecido"])
-        self.status_combo.setCurrentText(patrimonio_data[9])
+        self.status_combo.addItems(self.STATUS_OPTIONS)
 
-        # Popula e seleciona os ComboBoxes de FKs
-        self.categoria_combo.addItem("Selecione uma Categoria")
-        categorias = self.db_manager.fetch_all("SELECT id_categoria, nome_categoria FROM categorias")
-        for cat_id, cat_nome in categorias:
-            self.categoria_combo.addItem(cat_nome, cat_id)
-            if cat_id == patrimonio_data[6]: self.categoria_combo.setCurrentText(cat_nome)
+        status_atual = patrimonio.get("status")
+        if status_atual:
+            index_status = self.status_combo.findText(str(status_atual))
+            if index_status >= 0:
+                self.status_combo.setCurrentIndex(index_status)
 
-        self.fornecedor_combo.addItem("Selecione um Fornecedor")
-        fornecedores = self.db_manager.fetch_all("SELECT id_fornecedor, nome_fornecedor FROM fornecedores")
-        for forn_id, forn_nome in fornecedores:
-            self.fornecedor_combo.addItem(forn_nome, forn_id)
-            if forn_id == patrimonio_data[7]: self.fornecedor_combo.setCurrentText(forn_nome)
-
-        self.setor_local_combo.addItem("Selecione um Setor/Local")
-        setores_locais = self.db_manager.fetch_all("SELECT id_setor_local, nome_setor_local FROM setores_locais")
-        for sl_id, sl_nome in setores_locais:
-            self.setor_local_combo.addItem(sl_nome, sl_id)
-            if sl_id == patrimonio_data[8]: self.setor_local_combo.setCurrentText(sl_nome)
+        self._populate_fk_combo(
+            self.categoria_combo,
+            "Selecione uma Categoria",
+            "SELECT id_categoria, nome_categoria FROM categorias ORDER BY nome_categoria",
+            "id_categoria",
+            "nome_categoria",
+            patrimonio.get("id_categoria"),
+        )
+        self._populate_fk_combo(
+            self.fornecedor_combo,
+            "Selecione um Fornecedor",
+            "SELECT id_fornecedor, nome_fornecedor FROM fornecedores ORDER BY nome_fornecedor",
+            "id_fornecedor",
+            "nome_fornecedor",
+            patrimonio.get("id_fornecedor"),
+        )
+        self._populate_fk_combo(
+            self.setor_local_combo,
+            "Selecione um Setor/Local",
+            "SELECT id_setor_local, nome_setor_local FROM setores_locais ORDER BY nome_setor_local",
+            "id_setor_local",
+            "nome_setor_local",
+            patrimonio.get("id_setor_local"),
+        )
 
         form_layout.addRow("Nome:", self.nome_input)
-        form_layout.addRow("Descrição:", self.descricao_input)
-        form_layout.addRow("Número de Série:", self.numero_serie_input)
-        form_layout.addRow("Data de Aquisição:", self.data_aquisicao_input)
+        form_layout.addRow("Descricao:", self.descricao_input)
+        form_layout.addRow("Numero de Serie:", self.numero_serie_input)
+        form_layout.addRow("Data de Aquisicao:", self.data_aquisicao_input)
         form_layout.addRow("Valor de Compra:", self.valor_compra_input)
-        form_layout.addRow("Estado de Conservação:", self.estado_conservacao_input)
+        form_layout.addRow("Estado de Conservacao:", self.estado_conservacao_input)
         form_layout.addRow("Categoria:", self.categoria_combo)
         form_layout.addRow("Fornecedor:", self.fornecedor_combo)
         form_layout.addRow("Setor/Local:", self.setor_local_combo)
         form_layout.addRow("Status:", self.status_combo)
 
-        btn_salvar = QPushButton("Salvar Alterações")
-        btn_salvar.clicked.connect(lambda: self.atualizar_patrimonio(dialog, id_patrimonio_original))
+        btn_salvar = QPushButton("Salvar alteracoes")
+        btn_salvar.clicked.connect(lambda: self.atualizar_patrimonio(dialog, id_patrimonio))  # type: ignore[arg-type]
 
         layout.addLayout(form_layout)
         layout.addWidget(btn_salvar)
         dialog.setLayout(layout)
         dialog.exec()
 
-    def atualizar_patrimonio(self, dialog, id_patrimonio_original):
-        nome = self.nome_input.text()
-        descricao = self.descricao_input.text()
-        numero_serie = self.numero_serie_input.text()
+    def atualizar_patrimonio(self, dialog: QDialog, id_patrimonio: int) -> None:
+        nome = self.nome_input.text().strip()
+        descricao = self.descricao_input.text().strip()
+        numero_serie = self.numero_serie_input.text().strip()
         data_aquisicao = self.data_aquisicao_input.date().toString("yyyy-MM-dd")
         valor_compra = self.valor_compra_input.value()
         estado_conservacao = self.estado_conservacao_input.currentText()
@@ -304,119 +558,190 @@ class PatrimonioController(QWidget):
         id_setor_local = self.setor_local_combo.currentData()
         status = self.status_combo.currentText()
 
-        if not all([nome, descricao, numero_serie, data_aquisicao, valor_compra is not None, estado_conservacao, id_categoria, id_setor_local, status]):
-            QMessageBox.warning(dialog, "Erro", "Todos os campos obrigatórios devem ser preenchidos.")
+        if not all([nome, numero_serie, id_categoria, id_setor_local, status]):
+            QMessageBox.warning(dialog, "Edicao", "Preencha os campos obrigatorios.")
             return
-        
-        # Fornecedor pode ser opcional, então verificamos se foi selecionado
-        if id_fornecedor == "Selecione um Fornecedor":
-            id_fornecedor = None
 
-        query = "UPDATE patrimonios SET nome=%s, descricao=%s, numero_serie=%s, data_aquisicao=%s, valor_compra=%s, estado_conservacao=%s, id_categoria=%s, id_fornecedor=%s, id_setor_local=%s, status=%s WHERE id_patrimonio=%s"
-        params = (nome, descricao, numero_serie, data_aquisicao, valor_compra, estado_conservacao, id_categoria, id_fornecedor, id_setor_local, status, id_patrimonio_original)
+        set_parts = [
+            "nome = %s",
+            "descricao = %s",
+            "numero_serie = %s",
+            "data_aquisicao = %s",
+            "valor_compra = %s",
+            "estado_conservacao = %s",
+            "id_categoria = %s",
+            "id_fornecedor = %s",
+            "id_setor_local = %s",
+            "status = %s",
+        ]
+        params: list[object] = [
+            nome,
+            descricao or None,
+            numero_serie,
+            data_aquisicao,
+            valor_compra,
+            estado_conservacao,
+            id_categoria,
+            id_fornecedor,
+            id_setor_local,
+            status,
+        ]
 
-        if self.db_manager.execute_query(query, params):
-            QMessageBox.information(dialog, "Sucesso", "Patrimônio atualizado com sucesso!")
+        if self.has_valor_atual_column:
+            set_parts.append("valor_atual = %s")
+            params.append(valor_compra)
+
+        params.append(id_patrimonio)
+
+        query = f"UPDATE patrimonios SET {', '.join(set_parts)} WHERE id_patrimonio = %s"
+
+        if self.db_manager.execute_query(query, tuple(params)):
+            QMessageBox.information(dialog, "Edicao", "Patrimonio atualizado com sucesso.")
             dialog.accept()
             self.load_patrimonios()
         else:
-            QMessageBox.critical(dialog, "Erro", "Falha ao atualizar patrimônio. Verifique o número de série, ele deve ser único.")
+            QMessageBox.critical(
+                dialog,
+                "Edicao",
+                "Falha ao atualizar patrimonio. Verifique se o numero de serie ja existe.",
+            )
 
-    def registrar_movimentacao(self, id_patrimonio, tipo, origem, destino, observacoes=""):
-        # Assumindo que o usuário logado é o ID 1 para fins de teste
-        id_usuario = 1 
-        
-        query = """
-        INSERT INTO movimentacoes (id_patrimonio, id_usuario, tipo_movimentacao, origem, destino, observacoes)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        """
+    # --------------------------------------------------------------------- #
+    # Exclusao (baixa)
+    # --------------------------------------------------------------------- #
+    def registrar_movimentacao(
+        self,
+        id_patrimonio: int,
+        tipo: str,
+        origem: Optional[str],
+        destino: Optional[str],
+        observacoes: str = "",
+    ) -> bool:
+        id_usuario = 1  # TODO: recuperar usuario logado quando houver contexto
+        query = (
+            "INSERT INTO movimentacoes (id_patrimonio, id_usuario, tipo_movimentacao, origem, destino, observacoes) "
+            "VALUES (%s, %s, %s, %s, %s, %s)"
+        )
         params = (id_patrimonio, id_usuario, tipo, origem, destino, observacoes)
-        
-        return self.db_manager.execute_query(query, params)
+        return bool(self.db_manager.execute_query(query, params))
 
-    def excluir_patrimonio(self):
-        table = self.ui.findChild(QTableWidget, "tbl_patrimonio")
-        selected_rows = table.selectionModel().selectedRows()
-        if not selected_rows:
-            QMessageBox.warning(self.ui, "Excluir", "Selecione um patrimônio para excluir (baixar).")
+    def excluir_patrimonio(self) -> None:
+        if not self.table:
             return
 
-        row = selected_rows[0].row()
-        id_patrimonio = int(table.item(row, 0).text())
-        nome_patrimonio = table.item(row, 1).text()
-        local_atual = table.item(row, 9).text() # Setor/Local
+        selected_rows = self.table.selectionModel().selectedRows() if self.table.selectionModel() else []
+        if not selected_rows:
+            QMessageBox.warning(self.ui, "Baixa", "Selecione um patrimonio para baixar.")
+            return
 
-        reply = QMessageBox.question(self.ui, "Confirmação", 
-                                     f"Deseja realmente baixar o patrimônio \'{nome_patrimonio}\' (ID: {id_patrimonio})? Isso irá alterar seu status para 'baixado' e registrar uma movimentação.",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        
-        if reply == QMessageBox.Yes:
-            # 1. Atualizar o status do patrimônio para 'baixado'
-            query = "UPDATE patrimonios SET status = %s, data_baixa = %s WHERE id_patrimonio = %s"
-            params = ("baixado", QDate.currentDate().toString("yyyy-MM-dd"), id_patrimonio)
-            
-            if self.db_manager.execute_query(query, params):
-                # 2. Registrar a movimentação de baixa
-                if self.registrar_movimentacao(id_patrimonio, 'baixa', local_atual, 'Baixado', f"Baixa do patrimônio {nome_patrimonio}"):
-                    QMessageBox.information(self.ui, "Sucesso", "Patrimônio baixado e movimentação registrada com sucesso!")
-                    self.load_patrimonios()
-                else:
-                    QMessageBox.critical(self.ui, "Erro", "Patrimônio baixado, mas falha ao registrar a movimentação.")
-            else:
-                QMessageBox.critical(self.ui, "Erro", "Falha ao baixar patrimônio.")
+        row_index = selected_rows[0].row()
+        id_item = self.table.item(row_index, 0)
+        nome_item = self.table.item(row_index, 1)
+        local_item = self.table.item(row_index, 9)
 
-    def calcular_depreciacao(self, data_aquisicao_str, valor_compra):
+        if not id_item or not nome_item:
+            QMessageBox.critical(self.ui, "Baixa", "Dados do patrimonio selecionado estao incompletos.")
+            return
+
         try:
-            data_aquisicao = datetime.datetime.strptime(data_aquisicao_str, "%Y-%m-%d").date()
-            hoje = datetime.date.today()
-            
-            # Constantes para Depreciação Linear (5 anos de vida útil)
-            VIDA_UTIL_ANOS = 5
-            TAXA_DEPRECIACAO_ANUAL = 1 / VIDA_UTIL_ANOS # 20% ao ano
+            id_patrimonio = int(id_item.text())
+        except (TypeError, ValueError):
+            QMessageBox.critical(self.ui, "Baixa", "Identificador de patrimonio invalido.")
+            return
 
-            diferenca_dias = (hoje - data_aquisicao).days
-            anos_passados = diferenca_dias / 365.25
-            
-            # Depreciação acumulada (Valor de Compra * Taxa Anual * Anos Passados)
-            depreciacao_acumulada = valor_compra * TAXA_DEPRECIACAO_ANUAL * anos_passados
-            
-            # Limita a depreciação ao valor de compra (o valor atual nunca será negativo)
-            depreciacao_acumulada = min(depreciacao_acumulada, valor_compra)
-            
-            valor_atual = valor_compra - depreciacao_acumulada
-            
-            return max(0.0, valor_atual)
-        except Exception as e:
-            # print(f"Erro ao calcular depreciação: {e}")
-            return valor_compra # Retorna o valor original em caso de erro
+        nome_patrimonio = nome_item.text()
+        local_atual = local_item.text() if local_item else None
 
-    def atualizar_valores_depreciados(self):
-        """Atualiza o campo valor_atual de todos os patrimônios ativos no banco de dados."""
-        # Note: Este método assume que a tabela patrimonios tem a coluna valor_atual
-        patrimonios_ativos = self.db_manager.fetch_all("SELECT id_patrimonio, valor_compra, data_aquisicao FROM patrimonios WHERE status = 'ativo'")
-        
-        for id_patrimonio, valor_compra, data_aquisicao in patrimonios_ativos:
-            valor_atual = self.calcular_depreciacao(str(data_aquisicao), float(valor_compra))
-            
-            query = "UPDATE patrimonios SET valor_atual = %s WHERE id_patrimonio = %s"
-            self.db_manager.execute_query(query, (valor_atual, id_patrimonio))
+        resposta = QMessageBox.question(
+            self.ui,
+            "Confirmacao",
+            f"Deseja realmente baixar o patrimonio '{nome_patrimonio}' (ID: {id_patrimonio})?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
 
-    def refresh(self):
-        self.populate_comboboxes() # Recarrega os comboboxes de filtro caso dados de categorias/setores mudem
+        if resposta != QMessageBox.Yes:
+            return
+
+        query = "UPDATE patrimonios SET status = %s, data_baixa = %s WHERE id_patrimonio = %s"
+        params = ("baixado", QDate.currentDate().toString("yyyy-MM-dd"), id_patrimonio)
+
+        if not self.db_manager.execute_query(query, params):
+            QMessageBox.critical(self.ui, "Baixa", "Falha ao atualizar status do patrimonio.")
+            return
+
+        if self.registrar_movimentacao(
+            id_patrimonio,
+            "baixa",
+            local_atual,
+            "Baixado",
+            f"Baixa automatica do patrimonio {nome_patrimonio}",
+        ):
+            QMessageBox.information(self.ui, "Baixa", "Patrimonio baixado com sucesso.")
+        else:
+            QMessageBox.warning(
+                self.ui,
+                "Baixa",
+                "Patrimonio baixado, mas nao foi possivel registrar a movimentacao.",
+            )
+
         self.load_patrimonios()
 
-# CÓDIGO FINAL PARA patrimonio_controller.py (Já inclui Movimentação e Depreciação)
-from PySide6.QtWidgets import QWidget, QMessageBox, QTableWidget, QTableWidgetItem, QDialog, QVBoxLayout, QFormLayout, QLineEdit, QDateEdit, QDoubleSpinBox, QComboBox, QPushButton
-from PySide6.QtCore import QDate, QDateTime
-import datetime
-from database_manager import DatabaseManager
-import math
+    # --------------------------------------------------------------------- #
+    # Depreciacao
+    # --------------------------------------------------------------------- #
+    def calcular_depreciacao(self, data_aquisicao: object, valor_compra: float) -> float:
+        if not valor_compra:
+            return 0.0
 
-class PatrimonioController(QWidget):
-    # ... (O código completo do patrimonio_controller.py fornecido na resposta anterior) ...
-    # Devido ao limite de caracteres, use o código completo da resposta anterior.
-    # O código é extenso, mas é o que garante todas as funcionalidades.
-    
-    # Se precisar do código novamente, solicite.
-    pass
+        if isinstance(data_aquisicao, datetime.datetime):
+            data_base = data_aquisicao.date()
+        elif isinstance(data_aquisicao, datetime.date):
+            data_base = data_aquisicao
+        elif isinstance(data_aquisicao, str) and data_aquisicao:
+            try:
+                data_base = datetime.datetime.strptime(data_aquisicao, "%Y-%m-%d").date()
+            except ValueError:
+                return float(valor_compra)
+        else:
+            return float(valor_compra)
 
+        hoje = datetime.date.today()
+        dias_em_uso = (hoje - data_base).days
+        if dias_em_uso <= 0:
+            return float(valor_compra)
+
+        vida_util_anos = 5
+        taxa_anual = 1 / vida_util_anos
+        anos_passados = dias_em_uso / 365.25
+        depreciacao_acumulada = float(valor_compra) * taxa_anual * anos_passados
+        depreciacao_acumulada = min(depreciacao_acumulada, float(valor_compra))
+        return max(0.0, float(valor_compra) - depreciacao_acumulada)
+
+    def atualizar_valores_depreciados(self) -> None:
+        if not self.has_valor_atual_column:
+            return
+
+        patrimonios = self.db_manager.fetch_all(
+            "SELECT id_patrimonio, valor_compra, data_aquisicao FROM patrimonios WHERE status = 'ativo'"
+        )
+        for item in patrimonios:
+            id_patrimonio = item.get("id_patrimonio")
+            valor_compra = item.get("valor_compra")
+            data_aquisicao = item.get("data_aquisicao")
+
+            if id_patrimonio is None or valor_compra is None:
+                continue
+
+            valor_atual = self.calcular_depreciacao(data_aquisicao, float(valor_compra))
+            self.db_manager.execute_query(
+                "UPDATE patrimonios SET valor_atual = %s WHERE id_patrimonio = %s",
+                (valor_atual, id_patrimonio),
+            )
+
+    # --------------------------------------------------------------------- #
+    # Interface publica
+    # --------------------------------------------------------------------- #
+    def refresh(self) -> None:
+        self.populate_comboboxes()
+        self.load_patrimonios()

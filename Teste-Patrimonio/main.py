@@ -13,8 +13,17 @@ from centro_custo import CentroCustoController
 from fornecedores import FornecedoresController
 from Notas import NotasFiscaisController
 from patrimonio_controller import PatrimonioController # NOVO
+from depreciassao import DepreciacaoController
+from usuarios_controller import UsuariosController
+from manutencao_controller import ManutencaoController
+from movimentacoes_controller import MovimentacoesController
+from auditoria_controller import AuditoriaController
+from anexos_controller import AnexosController
+from relatorios_controller import RelatoriosController
+from setores_locais_controller import SetoresLocaisController
 
-def create_controller(key, widget, db_manager):
+
+def create_controller(key, widget, db_manager, current_user=None):
     if key == "notas_fiscais":
         return NotasFiscaisController(widget, db_manager)
     if key == "fornecedores":
@@ -23,6 +32,22 @@ def create_controller(key, widget, db_manager):
         return CentroCustoController(widget, db_manager)
     if key == "patrimonio":
         return PatrimonioController(widget, db_manager) # NOVO
+    if key == "depreciacao":
+        return DepreciacaoController(widget, db_manager)
+    if key == "usuarios":
+        return UsuariosController(widget, db_manager)
+    if key == "manutencao":
+        return ManutencaoController(widget, db_manager)
+    if key == "movimentacoes":
+        return MovimentacoesController(widget, db_manager, current_user=current_user)
+    if key == "auditoria":
+        return AuditoriaController(widget, db_manager)
+    if key == "anexos":
+        return AnexosController(widget, db_manager)
+    if key == "relatorios":
+        return RelatoriosController(widget, db_manager)
+    if key == "setores_locais":
+        return SetoresLocaisController(widget, db_manager)
     return None
 
 def load_ui(file_name: str):
@@ -161,26 +186,25 @@ class NeoBenesysApp:
                     stacked.addWidget(widget)
                     self.widgets[key] = widget
 
-                    controller = create_controller(key, widget, self.db_manager)
+                    controller = create_controller(key, widget, self.db_manager, self.current_user)
                     if controller:
                         self.controllers[key] = controller
                 except Exception as e:
                     print(f"[Aviso] Não consegui carregar {ui_file}: {e}")
 
         button_map = {
-            "btn_usuarios": "usuarios",
             "btn_patrimonio": "patrimonio",
+            "btn_movimentacoes": "movimentacoes",
             "btn_manutencoes": "manutencao",
+            "btn_notas_fiscais": "notas_fiscais",
+            "btn_fornecedores": "fornecedores",
+            "btn_centro_custo": "centro_custo",
+            "btn_setores_locais": "setores_locais",
             "btn_depreciacao": "depreciacao",
+            "btn_usuarios": "usuarios",
+            "btn_relatorios": "relatorios",
             "btn_auditoria": "auditoria",
             "btn_anexos": "anexos",
-            "btn_relatorios": "relatorios",
-            "btn_fornecedores": "fornecedores",
-            "btn_categorias": "categorias",
-            "btn_centro_custo": "centro_custo",
-            "btn_notas_fiscais": "notas_fiscais",
-            "btn_movimentacoes": "movimentacoes",
-            "btn_setores_locais": "setores_locais",
         }
 
         for btn_name, screen_key in button_map.items():
