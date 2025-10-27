@@ -15,6 +15,68 @@ from config_db import get_connection
 
 
 class DatabaseManager:
+    """Encapsula as interações com o banco de dados."""
+
+    _ANEXO_CONFIG: Dict[str, Dict[str, Any]] = {
+        "patrimonio": {
+            "table": "anexos",
+            "pk": "id_anexo",
+            "columns": {
+                "entidade_id": "id_patrimonio",
+                "nome_arquivo": "nome_arquivo",
+                "caminho_arquivo": "caminho_arquivo",
+                "tipo_arquivo": "tipo_arquivo",
+                "tamanho_arquivo": "tamanho_arquivo",
+                "data_upload": "data_upload",
+            },
+            "joins": [
+                "INNER JOIN patrimonios p ON p.id_patrimonio = a.id_patrimonio",
+            ],
+            "extra_select": [
+                "p.nome AS nome_entidade",
+            ],
+            "order_by": "a.data_upload DESC",
+        },
+        "manutencao": {
+            "table": "anexos_manutencoes",
+            "pk": "id_anexo",
+            "columns": {
+                "entidade_id": "id_manutencao",
+                "nome_arquivo": "nome_arquivo",
+                "caminho_arquivo": "caminho_arquivo",
+                "tipo_arquivo": "tipo_arquivo",
+                "tamanho_arquivo": "tamanho_arquivo",
+                "data_upload": "data_upload",
+            },
+            "joins": [
+                "INNER JOIN manutencoes m ON m.id_manutencao = a.id_manutencao",
+            ],
+            "extra_select": [
+                "m.descricao AS nome_entidade",
+            ],
+            "order_by": "a.data_upload DESC",
+        },
+        "nota_fiscal": {
+            "table": "anexos_notas_fiscais",
+            "pk": "id_anexo",
+            "columns": {
+                "entidade_id": "id_nota_fiscal",
+                "nome_arquivo": "nome_arquivo",
+                "caminho_arquivo": "caminho_arquivo",
+                "tipo_arquivo": "tipo_arquivo",
+                "tamanho_arquivo": "tamanho_arquivo",
+                "data_upload": "data_upload",
+            },
+            "joins": [
+                "INNER JOIN notas_fiscais nf ON nf.id_nota_fiscal = a.id_nota_fiscal",
+            ],
+            "extra_select": [
+                "nf.numero_nota AS nome_entidade",
+            ],
+            "order_by": "a.data_upload DESC",
+        },
+    }
+
     def __init__(self):
         self.connection = None
 
@@ -254,14 +316,57 @@ class DatabaseManager:
             cursor.close()
 
     # ---- Listagem utilitaria para telas --------------------------------- #
+    @staticmethod
+    def _normalize_user_active(value: Any) -> Optional[bool]:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return None
+        if isinstance(value, (int, float, Decimal)):
+            return value != 0
+        if isinstance(value, (bytes, bytearray)):
+            try:
+                value = value.decode().strip()
+            except Exception:
+                return None
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None
+            lowered = text.lower()
+            truthy = {"1", "true", "t", "sim", "s", "yes", "y", "ativo", "active"}
+            falsy = {"0", "false", "f", "nao", "não", "n", "inativo", "inactive"}
+            if lowered in truthy:
+                return True
+            if lowered in falsy:
+                return False
+            try:
+                numeric = Decimal(text)
+            except (ArithmeticError, ValueError):
+                return None
+            return numeric != 0
+        return bool(value)
+
     def list_users(self, search=None):
-        base_query = """
+        try:
+            columns = set(self.get_table_columns("usuarios"))
+        except mysql.connector.Error:
+            columns = set()
+
+        select_fields = [
+            "id_usuario",
+            "nome",
+            "email",
+            "nivel_acesso",
+        ]
+        if "ativo" in columns:
+            select_fields.append("ativo")
+        else:
+            select_fields.append("NULL AS ativo")
+
+        base_query = f"""
             SELECT
-                id_usuario,
-                nome,
-                email,
-                nivel_acesso,
-                'Sim' AS ativo
+                {', '.join(select_fields)}
             FROM usuarios
         """
         params = None
@@ -270,7 +375,11 @@ class DatabaseManager:
             like_term = f"%{search}%"
             params = (like_term, like_term)
         base_query += " ORDER BY nome"
-        return self.fetch_all(base_query, params)
+
+        rows = self.fetch_all(base_query, params)
+        for row in rows:
+            row["ativo"] = self._normalize_user_active(row.get("ativo"))
+        return rows
 
     def list_categorias(self):
         query = """
@@ -685,42 +794,104 @@ class DatabaseManager:
         """
         return self.fetch_all(query, (id_nota_fiscal,))
 
-    def list_anexos(self, id_patrimonio: Optional[int] = None) -> List[Dict[str, Any]]:
-        query_parts = [
-            "SELECT",
-            "    a.*,",
-            "    p.nome AS nome_patrimonio",
-            "FROM anexos a",
-            "INNER JOIN patrimonios p ON p.id_patrimonio = a.id_patrimonio",
-        ]
-        params: List[Any] = []
-        if id_patrimonio:
-            query_parts.append("WHERE a.id_patrimonio = %s")
-            params.append(id_patrimonio)
-        query_parts.append("ORDER BY a.data_upload DESC")
-        query = "\n".join(query_parts)
-        return self.fetch_all(query, tuple(params) if params else None)
+    def _normalize_anexo_entidade(self, entidade: Optional[str]) -> str:
+        chave = (entidade or "patrimonio").strip().lower()
+        if chave not in self._ANEXO_CONFIG:
+            raise ValueError(f"Entidade de anexo '{entidade}' não é suportada.")
+        return chave
 
-    def create_anexo(self, data: Dict[str, Any]) -> int:
+    def _get_anexo_allowed_columns(self, entidade: str) -> List[str]:
+        config = self._ANEXO_CONFIG[entidade]
+        try:
+            return self.get_table_columns(config["table"])
+        except mysql.connector.Error:
+            valores = [valor for valor in config["columns"].values() if valor]
+            return valores
+
+    def list_anexos(
+        self,
+        entidade: Optional[str] = None,
+        entidade_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        entidade_norm = self._normalize_anexo_entidade(entidade)
+        config = self._ANEXO_CONFIG[entidade_norm]
+
+        def _alias(coluna: Optional[str], apelido: str) -> str:
+            if coluna:
+                return f"a.`{coluna}` AS {apelido}"
+            return f"NULL AS {apelido}"
+
+        colunas = config["columns"]
+        select = [
+            _alias(config["pk"], "id_anexo"),
+            _alias(colunas.get("entidade_id"), "entidade_id"),
+            _alias(colunas.get("nome_arquivo"), "nome_arquivo"),
+            _alias(colunas.get("caminho_arquivo"), "caminho_arquivo"),
+            _alias(colunas.get("tamanho_arquivo"), "tamanho_arquivo"),
+            _alias(colunas.get("tipo_arquivo"), "tipo_arquivo"),
+            _alias(colunas.get("data_upload"), "data_upload"),
+        ]
+        select.extend(config.get("extra_select", []))
+
+        query_parts = ["SELECT", ",\n".join(select), f"FROM {config['table']} a"]
+        query_parts.extend(config.get("joins", []))
+
+        params: List[Any] = []
+        if entidade_id is not None:
+            query_parts.append(f"WHERE a.`{colunas['entidade_id']}` = %s")
+            params.append(entidade_id)
+
+        order_by = config.get("order_by")
+        if order_by:
+            query_parts.append(f"ORDER BY {order_by}")
+
+        query = "\n".join(query_parts)
+        rows = self.fetch_all(query, tuple(params) if params else None)
+        for row in rows:
+            row.setdefault("entidade", entidade_norm)
+        return rows
+
+    def create_anexo(self, entidade: str, data: Dict[str, Any]) -> int:
         if not data:
             raise ValueError("Dados do anexo não informados.")
-        try:
-            allowed = set(self.get_table_columns("anexos"))
-        except mysql.connector.Error:
-            allowed = {
-                "id_patrimonio",
-                "nome_arquivo",
-                "caminho_arquivo",
-                "tipo_arquivo",
-                "tamanho_arquivo",
-                "data_upload",
-            }
-        payload = {k: v for k, v in data.items() if k in allowed and k != "id_anexo"}
+
+        entidade_norm = self._normalize_anexo_entidade(entidade)
+        config = self._ANEXO_CONFIG[entidade_norm]
+        colunas = config["columns"]
+
+        fk_coluna = colunas.get("entidade_id")
+        entidade_id = data.get("entidade_id") or data.get(fk_coluna)
+        if not entidade_id:
+            raise ValueError("Identificador da entidade não informado.")
+
+        allowed = set(self._get_anexo_allowed_columns(entidade_norm))
+        allowed.discard(config["pk"])
+
+        payload: Dict[str, Any] = {}
+        for chave_logica, coluna in colunas.items():
+            if not coluna or coluna == config["pk"]:
+                continue
+            valor = data.get(chave_logica)
+            if valor is None and chave_logica == coluna:
+                valor = data.get(coluna)
+            if valor is None and chave_logica == "entidade_id":
+                valor = entidade_id
+            if valor is None:
+                continue
+            if coluna in allowed:
+                payload[coluna] = valor
+
+        if fk_coluna and fk_coluna not in payload:
+            if fk_coluna in allowed:
+                payload[fk_coluna] = entidade_id
+
         if not payload:
             raise ValueError("Nenhuma coluna válida para anexo.")
-        columns = ", ".join(f"`{key}`" for key in payload.keys())
+
+        columns = ", ".join(f"`{col}`" for col in payload.keys())
         placeholders = ", ".join(["%s"] * len(payload))
-        sql = f"INSERT INTO anexos ({columns}) VALUES ({placeholders})"
+        sql = f"INSERT INTO {config['table']} ({columns}) VALUES ({placeholders})"
+
         self._ensure_connection()
         cursor = self.connection.cursor()
         try:
@@ -733,8 +904,10 @@ class DatabaseManager:
         finally:
             cursor.close()
 
-    def delete_anexo(self, anexo_id: int) -> bool:
-        sql = "DELETE FROM anexos WHERE id_anexo = %s"
+    def delete_anexo(self, entidade: str, anexo_id: int) -> bool:
+        entidade_norm = self._normalize_anexo_entidade(entidade)
+        config = self._ANEXO_CONFIG[entidade_norm]
+        sql = f"DELETE FROM {config['table']} WHERE `{config['pk']}` = %s"
         rows = self.execute_query(sql, (anexo_id,))
         return bool(rows)
 
@@ -794,35 +967,61 @@ class DatabaseManager:
         """
         return self.fetch_all(query, (limit,))
 
-    def calcular_depreciacao(
-        self,
-        vida_util_anos: int = 10,
-        filters: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
-        patrimonios = self.list_patrimonios(filters)
+    def calcular_depreciacao(self, vida_util_anos: int = 10, filters: Optional[Dict[str, Any]] = None):
+        """Calcula os valores de depreciação para os patrimônios cadastrados.
+
+        A função aplica um modelo simples de depreciação linear considerando uma vida útil
+        média (em anos). Opcionalmente é possível filtrar os patrimônios pelo mesmo formato
+        aceito em :py:meth:`list_patrimonios`.
+
+        Parameters
+        ----------
+        vida_util_anos: int
+            Vida útil média utilizada para o cálculo linear. O padrão é ``10`` anos.
+        filters: dict, optional
+            Dicionário de filtros, aceitando ``texto`` e ``id_categoria`` entre outros
+            campos utilizados por :py:meth:`list_patrimonios`.
+        """
+
+        list_filters = filters or {}
+        patrimonios = self.list_patrimonios(list_filters if list_filters else None)
         hoje = date.today()
+        vida_util_meses = max(int(vida_util_anos) * 12, 1)
         linhas = []
+
         for item in patrimonios:
             valor = item.get("valor_compra") or Decimal("0")
             if not isinstance(valor, Decimal):
                 valor = Decimal(str(valor or "0"))
+
             aquisicao = item.get("data_aquisicao")
             if isinstance(aquisicao, datetime):
                 aquisicao = aquisicao.date()
-            if not isinstance(aquisicao, date):
-                anos_em_uso = 0
+
+            if isinstance(aquisicao, date):
+                meses_em_uso = max((hoje.year - aquisicao.year) * 12 + (hoje.month - aquisicao.month), 0)
             else:
-                anos_em_uso = max((hoje - aquisicao).days // 365, 0)
-            depreciacao_anual = valor / vida_util_anos if vida_util_anos else Decimal("0")
-            acumulado = depreciacao_anual * anos_em_uso
+                meses_em_uso = 0
+
+            depreciacao_mensal = valor / vida_util_meses if vida_util_meses else Decimal("0")
+            acumulado = depreciacao_mensal * Decimal(meses_em_uso)
             if acumulado > valor:
                 acumulado = valor
+
+            valor_periodo = depreciacao_mensal
+            if acumulado >= valor:
+                valor_periodo = Decimal("0")
+            elif acumulado + depreciacao_mensal > valor:
+                valor_periodo = valor - acumulado
+
             linhas.append(
                 {
                     "patrimonio": item.get("nome"),
+                    "categoria": item.get("nome_categoria"),
                     "competencia": hoje.strftime("%Y-%m"),
-                    "valor_periodo": float(depreciacao_anual),
+                    "valor_periodo": float(valor_periodo),
                     "valor_acumulado": float(acumulado),
                 }
             )
+
         return linhas
