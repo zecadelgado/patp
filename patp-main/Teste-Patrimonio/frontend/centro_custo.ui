@@ -1,0 +1,421 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<ui version="4.0">
+  <class>CentroCustoWidget</class>
+  <widget class="QWidget" name="CentroCustoWidget">
+    <property name="geometry">
+      <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>800</width>
+        <height>600</height>
+      </rect>
+    </property>
+    <property name="windowTitle">
+      <string>Centro de Custo</string>
+    </property>
+    <layout class="QVBoxLayout" name="verticalLayout">
+      <property name="spacing">
+        <number>20</number>
+      </property>
+      <property name="leftMargin">
+        <number>24</number>
+      </property>
+      <property name="topMargin">
+        <number>24</number>
+      </property>
+      <property name="rightMargin">
+        <number>24</number>
+      </property>
+      <property name="bottomMargin">
+        <number>24</number>
+      </property>
+      <item>
+        <widget class="QLabel" name="lbl_title">
+          <property name="text">
+            <string>Centro de Custo</string>
+          </property>
+          <property name="alignment">
+            <set>Qt::AlignmentFlag::AlignLeft | Qt::AlignmentFlag::AlignVCenter</set>
+          </property>
+        </widget>
+      </item>
+      <item>
+        <layout class="QHBoxLayout" name="horizontalLayout">
+          <property name="spacing">
+            <number>10</number>
+          </property>
+          <property name="leftMargin">
+            <number>0</number>
+          </property>
+          <property name="topMargin">
+            <number>0</number>
+          </property>
+          <property name="rightMargin">
+            <number>0</number>
+          </property>
+          <property name="bottomMargin">
+            <number>0</number>
+          </property>
+          <item>
+            <widget class="QPushButton" name="btn_novo">
+              <property name="minimumSize">
+                <size>
+                  <width>0</width>
+                  <height>40</height>
+                </size>
+              </property>
+              <property name="font">
+                <font>
+                  <family>Segoe UI</family>
+                  <pointsize>10</pointsize>
+                </font>
+              </property>
+              <property name="cursor">
+                <cursorShape>PointingHandCursor</cursorShape>
+              </property>
+              <property name="toolTip">
+                <string>Adicionar novo centro de custo</string>
+              </property>
+              <property name="text">
+                <string>Novo</string>
+              </property>
+            </widget>
+          </item>
+          <item>
+            <widget class="QPushButton" name="btn_salvar">
+              <property name="minimumSize">
+                <size>
+                  <width>0</width>
+                  <height>40</height>
+                </size>
+              </property>
+              <property name="font">
+                <font>
+                  <family>Segoe UI</family>
+                  <pointsize>10</pointsize>
+                </font>
+              </property>
+              <property name="cursor">
+                <cursorShape>PointingHandCursor</cursorShape>
+              </property>
+              <property name="toolTip">
+                <string>Salvar centro de custo atual</string>
+              </property>
+              <property name="text">
+                <string>Salvar</string>
+              </property>
+            </widget>
+          </item>
+          <item>
+            <widget class="QPushButton" name="btn_excluir">
+              <property name="minimumSize">
+                <size>
+                  <width>0</width>
+                  <height>40</height>
+                </size>
+              </property>
+              <property name="font">
+                <font>
+                  <family>Segoe UI</family>
+                  <pointsize>10</pointsize>
+                </font>
+              </property>
+              <property name="cursor">
+                <cursorShape>PointingHandCursor</cursorShape>
+              </property>
+              <property name="toolTip">
+                <string>Excluir centro de custo selecionado</string>
+              </property>
+              <property name="text">
+                <string>Excluir</string>
+              </property>
+            </widget>
+          </item>
+          <item>
+            <spacer name="horizontalSpacer">
+              <property name="orientation">
+                <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+                <size>
+                  <width>40</width>
+                  <height>20</height>
+                </size>
+              </property>
+            </spacer>
+          </item>
+          <item>
+            <widget class="QLineEdit" name="txt_buscar">
+              <property name="minimumSize">
+                <size>
+                  <width>250</width>
+                  <height>40</height>
+                </size>
+              </property>
+              <property name="placeholderText">
+                <string>Buscar centro de custo...</string>
+              </property>
+            </widget>
+          </item>
+          <item>
+            <widget class="QPushButton" name="btn_buscar">
+              <property name="minimumSize">
+                <size>
+                  <width>0</width>
+                  <height>40</height>
+                </size>
+              </property>
+              <property name="font">
+                <font>
+                  <family>Segoe UI</family>
+                  <pointsize>10</pointsize>
+                </font>
+              </property>
+              <property name="cursor">
+                <cursorShape>PointingHandCursor</cursorShape>
+              </property>
+              <property name="toolTip">
+                <string>Buscar centros de custo</string>
+              </property>
+              <property name="text">
+                <string>Buscar</string>
+              </property>
+            </widget>
+          </item>
+        </layout>
+      </item>
+      <item>
+        <widget class="QTabWidget" name="tab_widget">
+          <property name="currentIndex">
+            <number>0</number>
+          </property>
+          <widget class="QWidget" name="tab_dados">
+            <attribute name="title">
+              <string>Dados do Centro de Custo</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="verticalLayout_2">
+              <property name="spacing">
+                <number>20</number>
+              </property>
+              <property name="leftMargin">
+                <number>20</number>
+              </property>
+              <property name="topMargin">
+                <number>20</number>
+              </property>
+              <property name="rightMargin">
+                <number>20</number>
+              </property>
+              <property name="bottomMargin">
+                <number>20</number>
+              </property>
+              <item>
+                <layout class="QFormLayout" name="formLayout">
+                  <property name="horizontalSpacing">
+                    <number>20</number>
+                  </property>
+                  <property name="verticalSpacing">
+                    <number>15</number>
+                  </property>
+                  <property name="leftMargin">
+                    <number>0</number>
+                  </property>
+                  <property name="topMargin">
+                    <number>0</number>
+                  </property>
+                  <property name="rightMargin">
+                    <number>0</number>
+                  </property>
+                  <property name="bottomMargin">
+                    <number>0</number>
+                  </property>
+                  <item row="0" column="0">
+                    <widget class="QLabel" name="lbl_codigo">
+                      <property name="font">
+                        <font>
+                          <family>Segoe UI</family>
+                          <pointsize>10</pointsize>
+                        </font>
+                      </property>
+                      <property name="text">
+                        <string>Código:</string>
+                      </property>
+                      <property name="buddy">
+                        <cstring>txt_codigo</cstring>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="0" column="1">
+                    <widget class="QLineEdit" name="txt_codigo">
+                      <property name="maxLength">
+                        <number>10</number>
+                      </property>
+                      <property name="placeholderText">
+                        <string>Código único do centro de custo</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="1" column="0">
+                    <widget class="QLabel" name="lbl_nome">
+                      <property name="font">
+                        <font>
+                          <family>Segoe UI</family>
+                          <pointsize>10</pointsize>
+                        </font>
+                      </property>
+                      <property name="text">
+                        <string>Nome:</string>
+                      </property>
+                      <property name="buddy">
+                        <cstring>txt_nome</cstring>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="1" column="1">
+                    <widget class="QLineEdit" name="txt_nome">
+                      <property name="placeholderText">
+                        <string>Nome do centro de custo</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="2" column="0">
+                    <widget class="QLabel" name="lbl_responsavel">
+                      <property name="font">
+                        <font>
+                          <family>Segoe UI</family>
+                          <pointsize>10</pointsize>
+                        </font>
+                      </property>
+                      <property name="text">
+                        <string>Responsável:</string>
+                      </property>
+                      <property name="buddy">
+                        <cstring>txt_responsavel</cstring>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="2" column="1">
+                    <widget class="QLineEdit" name="txt_responsavel">
+                      <property name="placeholderText">
+                        <string>Nome do responsável pelo centro de custo</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="3" column="0">
+                    <widget class="QLabel" name="lbl_ativo">
+                      <property name="font">
+                        <font>
+                          <family>Segoe UI</family>
+                          <pointsize>10</pointsize>
+                        </font>
+                      </property>
+                      <property name="text">
+                        <string>Ativo:</string>
+                      </property>
+                      <property name="buddy">
+                        <cstring>chk_ativo</cstring>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="3" column="1">
+                    <widget class="QCheckBox" name="chk_ativo">
+                      <property name="text">
+                        <string>Centro de custo ativo</string>
+                      </property>
+                      <property name="checked">
+                        <bool>true</bool>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="4" column="0">
+                    <widget class="QLabel" name="lbl_observacoes">
+                      <property name="font">
+                        <font>
+                          <family>Segoe UI</family>
+                          <pointsize>10</pointsize>
+                        </font>
+                      </property>
+                      <property name="text">
+                        <string>Observações:</string>
+                      </property>
+                      <property name="buddy">
+                        <cstring>txt_observacoes</cstring>
+                      </property>
+                    </widget>
+                  </item>
+                  <item row="4" column="1">
+                    <widget class="QTextEdit" name="txt_observacoes">
+                      <property name="maximumSize">
+                        <size>
+                          <width>16777215</width>
+                          <height>100</height>
+                        </size>
+                      </property>
+                      <property name="placeholderText">
+                        <string>Observações adicionais sobre o centro de custo</string>
+                      </property>
+                    </widget>
+                  </item>
+                </layout>
+              </item>
+            </layout>
+          </widget>
+          <widget class="QWidget" name="tab_lista">
+            <attribute name="title">
+              <string>Lista de Centros de Custo</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="verticalLayout_3">
+              <property name="spacing">
+                <number>20</number>
+              </property>
+              <property name="leftMargin">
+                <number>20</number>
+              </property>
+              <property name="topMargin">
+                <number>20</number>
+              </property>
+              <property name="rightMargin">
+                <number>20</number>
+              </property>
+              <property name="bottomMargin">
+                <number>20</number>
+              </property>
+              <item>
+                <widget class="QTableView" name="tbl_centro_custo">
+                  <property name="alternatingRowColors">
+                    <bool>true</bool>
+                  </property>
+                  <property name="selectionBehavior">
+                    <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+                  </property>
+                  <attribute name="horizontalHeaderStretchLastSection">
+                    <bool>true</bool>
+                  </attribute>
+                  <attribute name="verticalHeaderVisible">
+                    <bool>false</bool>
+                  </attribute>
+                </widget>
+              </item>
+            </layout>
+          </widget>
+        </widget>
+      </item>
+    </layout>
+  </widget>
+  <tabstops>
+    <tabstop>btn_novo</tabstop>
+    <tabstop>btn_salvar</tabstop>
+    <tabstop>btn_excluir</tabstop>
+    <tabstop>txt_buscar</tabstop>
+    <tabstop>btn_buscar</tabstop>
+    <tabstop>tab_widget</tabstop>
+    <tabstop>txt_codigo</tabstop>
+    <tabstop>txt_nome</tabstop>
+    <tabstop>txt_responsavel</tabstop>
+    <tabstop>chk_ativo</tabstop>
+    <tabstop>txt_observacoes</tabstop>
+    <tabstop>tbl_centro_custo</tabstop>
+  </tabstops>
+  <resources />
+  <connections />
+</ui>
