@@ -240,8 +240,8 @@ class RelatoriosController:
             ws.column_dimensions[get_column_letter(col_idx)].width = 20
 
         last_row = len(exploded) + 2
-        ws.cell(row=last_row, column=len(columns) - 1, value="TOTAL").font = header_font
-        tv_cell = ws.cell(row=last_row, column=len(columns), value=total_val)
+        ws.cell(row=last_row, column=len(columns) - 2, value="TOTAL").font = header_font
+        tv_cell = ws.cell(row=last_row, column=len(columns) - 1, value=total_val)
         tv_cell.style = currency
         tv_cell.font = header_font
 
