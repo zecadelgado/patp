@@ -501,17 +501,23 @@ class PatrimonioController(QWidget):
         try:
             # Tenta extrair lista de números de série, se houver "a,b,c,..."
             serial_list = None
+            cleaned_serial_base: Optional[str] = dados.get("numero_serie") or None
             if numero_serie and ("," in numero_serie):
                 parts = [s.strip() for s in numero_serie.split(",") if s.strip()]
-                if len(parts) == quantidade:
+                if parts:
+                    cleaned_serial_base = parts[0]
+                if len(parts) == quantidade and len(set(parts)) == len(parts):
                     serial_list = parts
+            dados["numero_serie"] = cleaned_serial_base or None
+
+            enforce_unique_serial = bool(cleaned_serial_base and not serial_list)
 
             if self.has_quantidade_column and quantidade > 1:
                 ids = self.db_manager.create_patrimonios_bulk(
                     dados,
                     quantidade,
                     numero_series=serial_list,
-                    enforce_unique_serial=False  # mude para True se quiser sufixar -001, -002...
+                    enforce_unique_serial=enforce_unique_serial,
                 )
                 if ids:
                     QMessageBox.information(dialog, "Cadastro",

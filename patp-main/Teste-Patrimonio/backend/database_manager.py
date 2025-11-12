@@ -404,9 +404,14 @@ class DatabaseManager:
                 if numero_series and len(numero_series) == qtd:
                     row["numero_serie"] = numero_series[idx]
                 # Geração opcional de série única com sufixo
-                elif enforce_unique_serial and row.get("numero_serie"):
-                    base = str(row.get("numero_serie"))
-                    row["numero_serie"] = f"{base}-{idx+1:03d}"
+                elif enforce_unique_serial:
+                    base_value = row.get("numero_serie")
+                    if base_value is not None:
+                        base = str(base_value).strip()
+                        if base:
+                            row["numero_serie"] = f"{base}-{idx+1:03d}"
+                        else:
+                            row["numero_serie"] = None
 
                 if include_quantidade:
                     row["quantidade"] = 1
