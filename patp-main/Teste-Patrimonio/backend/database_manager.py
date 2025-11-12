@@ -334,6 +334,101 @@ class DatabaseManager:
         finally:
             cursor.close()
 
+    def create_patrimonios_bulk(
+        self,
+        data: Dict[str, Any],
+        quantidade: int,
+        numero_series: Optional[Sequence[str]] = None,
+        enforce_unique_serial: bool = False
+    ) -> List[int]:
+        if not data:
+            raise ValueError("Dados do patrimonio nao informados.")
+        try:
+            qtd = int(quantidade)
+        except Exception:
+            raise ValueError("Quantidade invalida.")
+        if qtd <= 0:
+            raise ValueError("Quantidade deve ser maior que zero.")
+
+        # Descobrir colunas disponíveis uma vez
+        try:
+            available_columns = set(self.get_table_columns("patrimonios"))
+        except mysql.connector.Error:
+            available_columns = {
+                "nome",
+                "descricao",
+                "numero_serie",
+                "valor_compra",
+                "data_aquisicao",
+                "estado_conservacao",
+                "id_categoria",
+                "id_fornecedor",
+                "id_setor_local",
+                "status",
+                "quantidade",
+                "numero_nota",
+                "valor_atual",
+            }
+
+        # Base estável de colunas: somente o que foi passado em `data` e existe na tabela
+        base_columns = [
+            k
+            for k in data.keys()
+            if k in available_columns and k not in ("id_patrimonio", "quantidade")
+        ]
+        # Se a tabela tiver 'quantidade', vamos inserir 1 para cada linha
+        include_quantidade = ("quantidade" in available_columns)
+        if include_quantidade:
+            columns_for_insert = base_columns + ["quantidade"]
+        else:
+            columns_for_insert = base_columns
+
+        if not columns_for_insert:
+            raise ValueError("Nenhuma coluna valida para inserir patrimonio.")
+
+        placeholders = ", ".join(["%s"] * len(columns_for_insert))
+        columns_clause = ", ".join(f"`{c}`" for c in columns_for_insert)
+
+        self._ensure_connection()
+        cursor = self.connection.cursor()
+        inserted_ids: List[int] = []
+        try:
+            # Transação única
+            if hasattr(self.connection, "start_transaction"):
+                self.connection.start_transaction()
+
+            for idx in range(qtd):
+                row = dict(data)  # cópia
+
+                # Numero de série por-item (lista fornecida)
+                if numero_series and len(numero_series) == qtd:
+                    row["numero_serie"] = numero_series[idx]
+                # Geração opcional de série única com sufixo
+                elif enforce_unique_serial and row.get("numero_serie"):
+                    base = str(row.get("numero_serie"))
+                    row["numero_serie"] = f"{base}-{idx+1:03d}"
+
+                if include_quantidade:
+                    row["quantidade"] = 1
+
+                values = [row.get(col) for col in base_columns]
+                if include_quantidade:
+                    values.append(1)
+
+                cursor.execute(
+                    f"INSERT INTO patrimonios ({columns_clause}) VALUES ({placeholders})",
+                    tuple(values)
+                )
+                inserted_ids.append(cursor.lastrowid)
+
+            self.connection.commit()
+            return inserted_ids
+        except mysql.connector.Error as err:
+            self.connection.rollback()
+            raise err
+        finally:
+            cursor.close()
+
     def update_patrimonio(self, patrimonio_id: int, data: Dict[str, Any]) -> bool:
         if not data:
             return False
