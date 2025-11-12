@@ -499,22 +499,48 @@ class PatrimonioController(QWidget):
             dados["numero_nota"] = numero_nota or None
 
         try:
-            novo_id = self.db_manager.create_patrimonio(dados)
-        except Exception as exc:
-            QMessageBox.critical(dialog, "Cadastro", f"Falha ao cadastrar patrimonio.\n{exc}")
-            return
+            # Tenta extrair lista de números de série, se houver "a,b,c,..."
+            serial_list = None
+            if numero_serie and ("," in numero_serie):
+                parts = [s.strip() for s in numero_serie.split(",") if s.strip()]
+                if len(parts) == quantidade:
+                    serial_list = parts
 
-        if novo_id:
-            QMessageBox.information(dialog, "Cadastro", "Patrimonio cadastrado com sucesso.")
-            dialog.accept()
-            self.load_patrimonios()
-            self._trigger_dashboard_update()
-        else:
-            QMessageBox.critical(
-                dialog,
-                "Cadastro",
-                "Falha ao cadastrar patrimonio. Verifique se o numero de serie ja existe.",
-            )
+            if self.has_quantidade_column and quantidade > 1:
+                ids = self.db_manager.create_patrimonios_bulk(
+                    dados,
+                    quantidade,
+                    numero_series=serial_list,
+                    enforce_unique_serial=False  # mude para True se quiser sufixar -001, -002...
+                )
+                if ids:
+                    QMessageBox.information(dialog, "Cadastro",
+                        f"{len(ids)} patrimônios cadastrados com sucesso.")
+                    dialog.accept()
+                    self.load_patrimonios()
+                    self._trigger_dashboard_update()
+                    return
+                else:
+                    QMessageBox.warning(dialog, "Cadastro",
+                        "Nenhum patrimônio foi criado (bulk retornou vazio).")
+                    return
+            else:
+                novo_id = self.db_manager.create_patrimonio(dados)
+                if novo_id:
+                    QMessageBox.information(dialog, "Cadastro",
+                        "Patrimônio cadastrado com sucesso.")
+                    dialog.accept()
+                    self.load_patrimonios()
+                    self._trigger_dashboard_update()
+                    return
+                else:
+                    QMessageBox.warning(dialog, "Cadastro",
+                        "Não foi possível criar o patrimônio.")
+                    return
+        except Exception as exc:
+            QMessageBox.critical(dialog, "Cadastro",
+                f"Falha ao cadastrar patrimônio(s).\n{exc}")
+            return
 
                                                                              
                        
