@@ -66,6 +66,8 @@ class AnexosController:
         self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
 
     def _connect_signals(self) -> None:
+        if self.cb_entidade:
+            self.cb_entidade.currentTextChanged.connect(self._on_entidade_changed)
         if self.btn_add:
             self.btn_add.clicked.connect(self._adicionar_anexo)
         if self.btn_remover:
@@ -82,12 +84,13 @@ class AnexosController:
     def _carregar_anexos(self) -> None:
         if not self.table:
             return
+        entidade = self._current_entidade()
         patrimonio_id = self.sb_entidade_id.value() if self.sb_entidade_id else 0
         rows = []
         mensagem: Optional[str] = None
         if patrimonio_id > 0:
             try:
-                rows = self.db_manager.list_anexos(patrimonio_id)
+                rows = self.db_manager.list_anexos(entidade, patrimonio_id)
             except Exception as exc:                                       
                 QMessageBox.critical(
                     self.widget,
@@ -119,7 +122,7 @@ class AnexosController:
 
         self.table.setRowCount(len(rows))
         for row_index, row in enumerate(rows):
-            entidade_row = row.get("entidade") or entidade
+            entidade_row = row.get("entidade") or self._current_entidade()
             entidade_id_row = (
                 row.get("entidade_id")
                 or row.get("id_patrimonio")
@@ -168,7 +171,7 @@ class AnexosController:
 
                                                                           
     def _adicionar_anexo(self) -> None:
-        entidade = self.cb_entidade.currentText().strip() if self.cb_entidade else "patrimonio"
+        entidade = self._current_entidade()
         if not self.sb_entidade_id:
             return
         entidade_id = self.sb_entidade_id.value()
@@ -222,9 +225,7 @@ class AnexosController:
         item = selected[0]
         metadata = item.data(Qt.ItemDataRole.UserRole) or {}
         anexo_id = metadata.get("id_anexo")
-        entidade = metadata.get("entidade") or (
-            self.cb_entidade.currentText().strip() if self.cb_entidade else "patrimonio"
-        )
+        entidade = metadata.get("entidade") or self._current_entidade()
         if not anexo_id or not entidade:
             QMessageBox.warning(self.widget, "Anexos", "Não foi possível identificar o anexo.")
             return
@@ -255,3 +256,15 @@ class AnexosController:
             valor /= 1024
             indice += 1
         return f"{valor:.2f} {unidades[indice]}"
+
+    def _current_entidade(self) -> str:
+        if self.cb_entidade:
+            texto = self.cb_entidade.currentText().strip().lower()
+            if texto:
+                return texto
+        return "patrimonio"
+
+    def _on_entidade_changed(self) -> None:
+        if self.le_arquivo:
+            self.le_arquivo.clear()
+        self.refresh()

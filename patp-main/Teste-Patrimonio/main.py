@@ -1,10 +1,22 @@
                            
 import sys
 import os
+from datetime import datetime
 from pathlib import Path
-from PySide6.QtWidgets import QApplication, QPushButton, QMessageBox, QLineEdit, QStackedWidget, QLabel
+from typing import Dict, List, Optional, Tuple
+from PySide6.QtWidgets import (
+    QApplication,
+    QCalendarWidget,
+    QLabel,
+    QListWidget,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QStackedWidget,
+)
 from PySide6.QtUiTools import QUiLoader
-from PySide6.QtCore import QFile, QFileInfo, QTimer, QDateTime
+from PySide6.QtCore import QFile, QFileInfo, QTimer, QDate, QDateTime
+from PySide6.QtGui import QBrush, QColor, QFont, QTextCharFormat
 from frontend import resources_rc
 
                                                                               
@@ -43,7 +55,7 @@ def create_controller(key, widget, db_manager, current_user=None):
     if key == "depreciacao":
         return DepreciacaoController(widget, db_manager)
     if key == "auditoria":
-        return AuditoriaController(widget, db_manager)
+        return AuditoriaController(widget, db_manager, current_user)
     if key == "anexos":
         return AnexosController(widget, db_manager)
     if key == "relatorios":
@@ -120,6 +132,12 @@ class NeoBenesysApp:
         self.screens = {}
         self.controllers = {}
         self.current_user = None
+        self._calendar_widget = None
+        self._calendar_list = None
+        self._calendar_summary_label = None
+        self._calendar_highlighted_dates = []
+        self._auditorias_por_data = {}
+        self._calendar_setup_done = False
 
     def _apply_theme_if_needed(self, widget=None):
         if self._theme_applied or not self._global_theme or widget is None:
@@ -230,6 +248,8 @@ class NeoBenesysApp:
                         self.controllers[key] = controller
                         if key == "patrimonio" and hasattr(controller, "set_dashboard_updater"):
                             controller.set_dashboard_updater(self.atualizar_cards_dashboard)
+                        if key == "auditoria" and hasattr(controller, "set_dashboard_callback"):
+                            controller.set_dashboard_callback(self._atualizar_calendario_auditorias_widget)
                 except Exception as e:
                     print(f"[Aviso] Não consegui carregar {ui_file}: {e}")
 
@@ -278,6 +298,7 @@ class NeoBenesysApp:
         if btn_sair:
             btn_sair.clicked.connect(QApplication.instance().quit)
 
+        self._setup_dashboard_calendar()
         self.atualizar_cards_dashboard()
         self.iniciar_relogio_dashboard()
         self.dashboard.show()
@@ -311,6 +332,134 @@ class NeoBenesysApp:
             total = metrics.get("total_valor", 0.0) or 0.0
             total_text = f"R$ {float(total):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             lbl_total.setText(total_text)
+        self._atualizar_calendario_auditorias_widget()
+
+    def _setup_dashboard_calendar(self):
+        if not self.dashboard or self._calendar_setup_done:
+            return
+        self._calendar_widget = self.dashboard.findChild(QCalendarWidget, "calendar_auditorias")
+        self._calendar_list = self.dashboard.findChild(QListWidget, "lst_auditorias_dia")
+        self._calendar_summary_label = self.dashboard.findChild(QLabel, "lbl_auditorias_resumo")
+        if self._calendar_widget:
+            self._calendar_widget.selectionChanged.connect(self._on_dashboard_calendar_selection)
+            self._calendar_setup_done = True
+            self._calendar_highlighted_dates = []
+
+    def _on_dashboard_calendar_selection(self):
+        if not self._calendar_widget:
+            return
+        selected = self._calendar_widget.selectedDate()
+        if selected:
+            self._atualizar_lista_auditorias_por_data(selected)
+
+    def _atualizar_calendario_auditorias_widget(self):
+        if not self.dashboard or not self._calendar_widget:
+            return
+        try:
+            rows = self.db_manager.list_auditorias_agendadas()
+        except Exception as exc:
+            print(f"[Aviso] Não consegui obter auditorias agendadas: {exc}")
+            rows = []
+
+        self._auditorias_por_data = {}
+        novos_formatos: List[QDate] = []
+        for row in rows:
+            qdate = self._to_qdate(row.get("data_auditoria"))
+            if not qdate:
+                continue
+            chave = (qdate.year(), qdate.month(), qdate.day())
+            self._auditorias_por_data.setdefault(chave, []).append(row)
+            novos_formatos.append(qdate)
+
+        # limpar formatação antiga
+        for qdate in self._calendar_highlighted_dates:
+            self._calendar_widget.setDateTextFormat(qdate, QTextCharFormat())
+
+        destaque = QTextCharFormat()
+        destaque.setBackground(QBrush(QColor("#c6f6d5")))
+        destaque.setFontWeight(QFont.Weight.Bold)
+
+        vistos = set()
+        atual = []
+        for qdate in novos_formatos:
+            chave = (qdate.year(), qdate.month(), qdate.day())
+            if chave in vistos:
+                continue
+            vistos.add(chave)
+            atual.append(qdate)
+            self._calendar_widget.setDateTextFormat(qdate, destaque)
+        self._calendar_highlighted_dates = atual
+
+        selecionado = self._calendar_widget.selectedDate()
+        if not selecionado or (selecionado.year(), selecionado.month(), selecionado.day()) not in self._auditorias_por_data:
+            if atual:
+                self._calendar_widget.setSelectedDate(atual[0])
+                selecionado = atual[0]
+        self._atualizar_lista_auditorias_por_data(selecionado or QDate.currentDate())
+
+    def _atualizar_lista_auditorias_por_data(self, qdate: QDate) -> None:
+        if not self._calendar_list:
+            return
+        chave = (qdate.year(), qdate.month(), qdate.day())
+        registros = self._auditorias_por_data.get(chave, [])
+        registros = sorted(
+            registros,
+            key=lambda row: self._to_datetime(row.get("data_auditoria")) or datetime.max,
+        )
+
+        self._calendar_list.clear()
+        if not registros:
+            self._calendar_list.addItem("Nenhuma auditoria agendada nesta data.")
+        else:
+            for registro in registros:
+                dt = self._to_datetime(registro.get("data_auditoria"))
+                hora = dt.strftime("%H:%M") if dt else "--:--"
+                descricao = registro.get("acao") or "Auditoria"
+                tabela = registro.get("tabela_afetada")
+                extra = f" ({tabela})" if tabela else ""
+                self._calendar_list.addItem(f"{hora} - {descricao}{extra}")
+
+        if self._calendar_summary_label:
+            data_texto = qdate.toString("dd/MM/yyyy")
+            self._calendar_summary_label.setText(f"{len(registros)} auditoria(s) em {data_texto}")
+
+    @staticmethod
+    def _to_qdate(valor: object) -> Optional[QDate]:
+        if isinstance(valor, QDate):
+            return valor
+        dt = NeoBenesysApp._to_datetime_static(valor)
+        if not dt:
+            return None
+        return QDate(dt.year, dt.month, dt.day)
+
+    @staticmethod
+    def _to_datetime(valor: object) -> Optional[datetime]:
+        return NeoBenesysApp._to_datetime_static(valor)
+
+    @staticmethod
+    def _to_datetime_static(valor: object) -> Optional[datetime]:
+        if isinstance(valor, datetime):
+            return valor
+        if isinstance(valor, QDateTime):
+            if hasattr(valor, "toPython"):
+                return valor.toPython()
+            return datetime(
+                valor.date().year(),
+                valor.date().month(),
+                valor.date().day(),
+                valor.time().hour(),
+                valor.time().minute(),
+                valor.time().second(),
+            )
+        if isinstance(valor, str):
+            texto = valor.strip()
+            if not texto:
+                return None
+            try:
+                return datetime.fromisoformat(texto.replace("Z", ""))
+            except ValueError:
+                return None
+        return None
 
     def iniciar_relogio_dashboard(self):
         lbl_data = self.dashboard.findChild(QLabel, "lbl_data")

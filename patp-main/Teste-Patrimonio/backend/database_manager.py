@@ -222,6 +222,10 @@ class DatabaseManager:
             return
 
         alter_statements: List[str] = []
+        if "numero_patrimonio" not in columns:
+            alter_statements.append(
+                "ADD COLUMN numero_patrimonio BIGINT UNSIGNED NULL UNIQUE AFTER id_patrimonio"
+            )
         if "quantidade" not in columns:
             alter_statements.append(
                 "ADD COLUMN quantidade INT NOT NULL DEFAULT 1 AFTER valor_compra"
@@ -251,6 +255,18 @@ class DatabaseManager:
             print(f"[DatabaseManager] Falha ao ajustar colunas opcionais de patrimonios: {err}")
         finally:
             cursor.close()
+
+    def _get_next_patrimonio_numbers(self, cursor, quantidade: int) -> List[int]:
+        if quantidade <= 0:
+            return []
+        cursor.execute("SELECT COALESCE(MAX(numero_patrimonio), 0) FROM patrimonios FOR UPDATE")
+        row = cursor.fetchone()
+        last = row[0] if row else 0
+        try:
+            last_int = int(last or 0)
+        except (TypeError, ValueError):
+            last_int = 0
+        return [last_int + i for i in range(1, quantidade + 1)]
 
     def create_patrimonio(self, data: Dict[str, Any]) -> int:
         if not data:
@@ -297,6 +313,10 @@ class DatabaseManager:
             "valor_atual",
         )
 
+        numero_patrimonio_available = "numero_patrimonio" in available_columns
+        numero_patrimonio_value = data.get("numero_patrimonio") if numero_patrimonio_available else None
+        auto_generate_numero = numero_patrimonio_available and not numero_patrimonio_value
+
         columns: List[str] = []
         values: List[Any] = []
         for field in ordered_fields:
@@ -316,12 +336,21 @@ class DatabaseManager:
         if not columns:
             raise ValueError("Nenhuma coluna valida para inserir patrimonio.")
 
-        placeholders = ", ".join(["%s"] * len(columns))
-        columns_clause = ", ".join(f"`{col}`" for col in columns)
-
         self._ensure_connection()
         cursor = self.connection.cursor()
         try:
+            if hasattr(self.connection, "start_transaction") and not getattr(self.connection, "in_transaction", False):
+                self.connection.start_transaction()
+            if numero_patrimonio_available:
+                if auto_generate_numero:
+                    seq_values = self._get_next_patrimonio_numbers(cursor, 1)
+                    numero_patrimonio_value = seq_values[0] if seq_values else None
+                columns.append("numero_patrimonio")
+                values.append(numero_patrimonio_value)
+
+            placeholders = ", ".join(["%s"] * len(columns))
+            columns_clause = ", ".join(f"`{col}`" for col in columns)
+
             cursor.execute(
                 f"INSERT INTO patrimonios ({columns_clause}) VALUES ({placeholders})",
                 tuple(values),
@@ -376,6 +405,9 @@ class DatabaseManager:
             for k in data.keys()
             if k in available_columns and k not in ("id_patrimonio", "quantidade")
         ]
+        include_numero_patrimonio = "numero_patrimonio" in available_columns
+        if include_numero_patrimonio and "numero_patrimonio" not in base_columns:
+            base_columns.append("numero_patrimonio")
         # Se a tabela tiver 'quantidade', vamos inserir 1 para cada linha
         include_quantidade = ("quantidade" in available_columns)
         if include_quantidade:
@@ -394,8 +426,11 @@ class DatabaseManager:
         inserted_ids: List[int] = []
         try:
             # Transação única
-            if hasattr(self.connection, "start_transaction"):
+            if hasattr(self.connection, "start_transaction") and not getattr(self.connection, "in_transaction", False):
                 self.connection.start_transaction()
+            seq_numbers: List[int] = []
+            if include_numero_patrimonio:
+                seq_numbers = self._get_next_patrimonio_numbers(cursor, qtd)
 
             for idx in range(qtd):
                 row = dict(data)  # cópia
@@ -412,6 +447,9 @@ class DatabaseManager:
                             row["numero_serie"] = f"{base}-{idx+1:03d}"
                         else:
                             row["numero_serie"] = None
+
+                if include_numero_patrimonio:
+                    row["numero_patrimonio"] = seq_numbers[idx]
 
                 if include_quantidade:
                     row["quantidade"] = 1
@@ -433,6 +471,18 @@ class DatabaseManager:
             raise err
         finally:
             cursor.close()
+
+    def get_patrimonio_codigos(self, ids: Sequence[int]) -> List[Dict[str, Any]]:
+        if not ids:
+            return []
+        placeholders = ", ".join(["%s"] * len(ids))
+        query = f"""
+            SELECT id_patrimonio, numero_patrimonio
+            FROM patrimonios
+            WHERE id_patrimonio IN ({placeholders})
+            ORDER BY numero_patrimonio ASC
+        """
+        return self.fetch_all(query, tuple(ids))
 
     def update_patrimonio(self, patrimonio_id: int, data: Dict[str, Any]) -> bool:
         if not data:
@@ -761,6 +811,7 @@ class DatabaseManager:
         query = [
             "SELECT",
             "    p.id_patrimonio,",
+            "    p.numero_patrimonio,",
             "    p.nome AS nome_patrimonio,",
             "    p.descricao,",
             "    p.numero_serie,",
@@ -795,8 +846,15 @@ class DatabaseManager:
             text = filters.get("texto")
             if text:
                 like = f"%{text}%"
-                conditions.append("(p.nome LIKE %s OR p.descricao LIKE %s OR p.numero_serie LIKE %s)")
-                params.extend([like, like, like])
+                conditions.append(
+                    "("
+                    "p.nome LIKE %s OR "
+                    "p.descricao LIKE %s OR "
+                    "p.numero_serie LIKE %s OR "
+                    "CAST(p.numero_patrimonio AS CHAR) LIKE %s"
+                    ")"
+                )
+                params.extend([like, like, like, like])
             categoria_id = filters.get("id_categoria")
             if categoria_id:
                 conditions.append("p.id_categoria = %s")
@@ -1216,6 +1274,110 @@ class DatabaseManager:
             LIMIT %s
         """
         return self.fetch_all(query, (limit,))
+
+    def create_auditoria(self, data: Dict[str, Any]) -> int:
+        if not data.get("id_usuario"):
+            raise ValueError("Usuário da auditoria não informado.")
+        if not data.get("acao"):
+            raise ValueError("Ação da auditoria não informada.")
+
+        payload: Dict[str, Any] = {}
+        columns = (
+            "id_usuario",
+            "data_auditoria",
+            "acao",
+            "tabela_afetada",
+            "id_registro_afetado",
+            "detalhes_antigos",
+            "detalhes_novos",
+        )
+        for coluna in columns:
+            valor = data.get(coluna)
+            if valor is None or valor == "":
+                continue
+            if coluna == "id_registro_afetado" and (valor == 0 or valor == "0"):
+                continue
+            if coluna in {"detalhes_antigos", "detalhes_novos"} and isinstance(valor, (dict, list)):
+                valor = json.dumps(valor, ensure_ascii=False)
+            if coluna == "data_auditoria" and isinstance(valor, datetime):
+                valor = valor.strftime("%Y-%m-%d %H:%M:%S")
+            payload[coluna] = valor
+
+        if "data_auditoria" not in payload:
+            payload["data_auditoria"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        colunas_sql = ", ".join(f"`{col}`" for col in payload.keys())
+        placeholders = ", ".join(["%s"] * len(payload))
+        sql = f"INSERT INTO auditorias ({colunas_sql}) VALUES ({placeholders})"
+
+        self._ensure_connection()
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(sql, tuple(payload.values()))
+            self.connection.commit()
+            return cursor.lastrowid
+        except mysql.connector.Error:
+            self.connection.rollback()
+            raise
+        finally:
+            cursor.close()
+
+    def update_auditoria(self, auditoria_id: int, data: Dict[str, Any]) -> bool:
+        if not auditoria_id:
+            raise ValueError("Identificador da auditoria não informado.")
+        if not data:
+            return False
+
+        allowed = (
+            "data_auditoria",
+            "acao",
+            "tabela_afetada",
+            "id_registro_afetado",
+            "detalhes_antigos",
+            "detalhes_novos",
+        )
+        updates: List[str] = []
+        params: List[Any] = []
+        for coluna in allowed:
+            if coluna not in data:
+                continue
+            valor = data[coluna]
+            if valor is None or valor == "":
+                valor = None
+            if coluna == "id_registro_afetado" and valor in (0, "0"):
+                valor = None
+            if coluna in {"detalhes_antigos", "detalhes_novos"} and isinstance(valor, (dict, list)):
+                valor = json.dumps(valor, ensure_ascii=False)
+            if coluna == "data_auditoria" and isinstance(valor, datetime):
+                valor = valor.strftime("%Y-%m-%d %H:%M:%S")
+            updates.append(f"`{coluna}` = %s")
+            params.append(valor)
+
+        if not updates:
+            return False
+        params.append(auditoria_id)
+        sql = f"UPDATE auditorias SET {', '.join(updates)} WHERE id_auditoria = %s"
+        rows = self.execute_query(sql, tuple(params))
+        return bool(rows)
+
+    def list_auditorias_agendadas(self, dias: int = 90) -> List[Dict[str, Any]]:
+        query = """
+            SELECT
+                aud.id_auditoria,
+                aud.data_auditoria,
+                aud.acao,
+                aud.tabela_afetada,
+                aud.id_registro_afetado,
+                JSON_UNQUOTE(JSON_EXTRACT(aud.detalhes_novos, '$.observacoes')) AS observacoes
+            FROM auditorias aud
+            WHERE JSON_UNQUOTE(JSON_EXTRACT(aud.detalhes_novos, '$.status')) = 'agendado'
+        """
+        params: List[Any] = []
+        if dias and dias > 0:
+            query += " AND aud.data_auditoria BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL %s DAY)"
+            params.append(dias)
+        query += " ORDER BY aud.data_auditoria ASC"
+        return self.fetch_all(query, tuple(params) if params else None)
 
     def relatorio_por_setor(self):
         query = """

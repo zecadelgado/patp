@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDoubleSpinBox,
     QFormLayout,
+    QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -29,6 +30,7 @@ class PatrimonioController(QWidget):
 
     TABLE_HEADERS: Sequence[str] = (
         "ID",
+        "Número Patrimonial",
         "Nome",
         "Descricao",
         "Numero de Serie",
@@ -208,6 +210,12 @@ class PatrimonioController(QWidget):
             return "R$ 0.00"
 
     @staticmethod
+    def _format_codigo(value: Optional[object]) -> str:
+        if value in (None, "", 0):
+            return "-"
+        return str(value)
+
+    @staticmethod
     def _format_date(value: Optional[datetime.date]) -> str:
         if value is None:
             return "-"
@@ -323,6 +331,7 @@ class PatrimonioController(QWidget):
 
             table_values = [
                 item.get("id_patrimonio"),
+                self._format_codigo(item.get("numero_patrimonio")),
                 item.get("nome_patrimonio"),
                 item.get("descricao"),
                 item.get("numero_serie"),
@@ -354,6 +363,10 @@ class PatrimonioController(QWidget):
 
         layout = QVBoxLayout()
         form_layout = QFormLayout()
+
+        codigo_hint = QLabel("Será gerado automaticamente ao salvar.")
+        codigo_hint.setStyleSheet("color: #666666; font-style: italic;")
+        form_layout.addRow("Número patrimonial:", codigo_hint)
 
         self.nome_input = QLineEdit()
         self.descricao_input = QLineEdit()
@@ -463,7 +476,7 @@ class PatrimonioController(QWidget):
         )
         status = self.status_combo.currentText()
 
-        if not nome or not numero_serie or id_categoria is None or id_setor_local is None or not status:
+        if not nome or id_categoria is None or id_setor_local is None or not status:
             QMessageBox.warning(dialog, "Cadastro", "Preencha os campos obrigatorios.")
             return
 
@@ -520,8 +533,20 @@ class PatrimonioController(QWidget):
                     enforce_unique_serial=enforce_unique_serial,
                 )
                 if ids:
+                    numeros = self.db_manager.get_patrimonio_codigos(ids)
+                    numeros_lista = [
+                        self._format_codigo(row.get("numero_patrimonio"))
+                        for row in numeros
+                        if row.get("numero_patrimonio") not in (None, "")
+                    ]
+                    detalhe = ""
+                    if numeros_lista:
+                        if len(numeros_lista) == 1:
+                            detalhe = f" Número gerado: {numeros_lista[0]}."
+                        else:
+                            detalhe = f" Números gerados: {numeros_lista[0]} - {numeros_lista[-1]}."
                     QMessageBox.information(dialog, "Cadastro",
-                        f"{len(ids)} patrimônios cadastrados com sucesso.")
+                        f"{len(ids)} patrimônios cadastrados com sucesso.{detalhe}")
                     dialog.accept()
                     self.load_patrimonios()
                     self._trigger_dashboard_update()
@@ -533,8 +558,12 @@ class PatrimonioController(QWidget):
             else:
                 novo_id = self.db_manager.create_patrimonio(dados)
                 if novo_id:
+                    codigo = self.db_manager.get_patrimonio_codigos([novo_id])
+                    numero_texto = ""
+                    if codigo and codigo[0].get("numero_patrimonio") not in (None, ""):
+                        numero_texto = f" Número gerado: {self._format_codigo(codigo[0].get('numero_patrimonio'))}."
                     QMessageBox.information(dialog, "Cadastro",
-                        "Patrimônio cadastrado com sucesso.")
+                        f"Patrimônio cadastrado com sucesso.{numero_texto}")
                     dialog.accept()
                     self.load_patrimonios()
                     self._trigger_dashboard_update()
@@ -578,6 +607,7 @@ class PatrimonioController(QWidget):
             "nome",
             "descricao",
             "numero_serie",
+            "numero_patrimonio" if "numero_patrimonio" in available_columns else "NULL AS numero_patrimonio",
             "data_aquisicao",
             "valor_compra",
             "estado_conservacao",
@@ -615,6 +645,10 @@ class PatrimonioController(QWidget):
 
         layout = QVBoxLayout()
         form_layout = QFormLayout()
+
+        numero_label = QLabel(self._format_codigo(patrimonio.get("numero_patrimonio")))
+        numero_label.setStyleSheet("font-weight: bold;")
+        form_layout.addRow("Número patrimonial:", numero_label)
 
         self.nome_input = QLineEdit(patrimonio.get("nome") or "")
         self.descricao_input = QLineEdit(patrimonio.get("descricao") or "")
