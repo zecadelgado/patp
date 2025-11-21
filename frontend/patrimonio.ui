@@ -194,6 +194,13 @@
             </widget>
           </item>
           <item>
+            <widget class="QPushButton" name="btn_importar">
+              <property name="text">
+                <string>Importar em Massa</string>
+              </property>
+            </widget>
+          </item>
+          <item>
             <spacer name="hspacer">
               <property name="orientation">
                 <enum>Qt::Orientation::Horizontal</enum>
