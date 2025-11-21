@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`usuarios` (
   `nome` VARCHAR(255) NOT NULL,
   `email` VARCHAR(255) NOT NULL,
   `senha` VARCHAR(255) NOT NULL,
-  `nivel_acesso` ENUM('admin', 'user') NOT NULL DEFAULT 'user',
+  `nivel_acesso` ENUM('master', 'admin', 'user') NOT NULL DEFAULT 'user',
   `data_criacao` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id_usuario`),
   UNIQUE INDEX `email_UNIQUE` (`email` ASC) VISIBLE)
@@ -290,7 +290,7 @@ CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`usuarios` (
   `nome` VARCHAR(255) NOT NULL,
   `email` VARCHAR(255) NOT NULL,
   `senha` VARCHAR(255) NOT NULL,
-  `nivel_acesso` ENUM('admin', 'user') NOT NULL DEFAULT 'user',
+  `nivel_acesso` ENUM('master', 'admin', 'user') NOT NULL DEFAULT 'user',
   `data_criacao` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id_usuario`),
   UNIQUE INDEX `email_UNIQUE` (`email` ASC) VISIBLE)

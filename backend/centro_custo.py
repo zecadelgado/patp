@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from database_manager import DatabaseManager
+
 
 @dataclass
 class _ColumnConfig:
@@ -241,9 +243,13 @@ class CentroCustoController:
         self._set_buttons_state()
 
     def _handle_excluir(self):
-        # Verificar permissão de admin
-        if not self.current_user or self.current_user.get('nivel_acesso') != 'admin':
-            QMessageBox.warning(self.widget, "Centro de Custo", "Você não tem permissão para realizar esta ação.")
+        # Verificar permissão de admin/master
+        if not DatabaseManager.has_admin_privileges(self.current_user):
+            QMessageBox.warning(
+                self.widget,
+                "Centro de Custo",
+                "Ação permitida apenas para administradores ou usuários master.",
+            )
             return
         
         if not self._ready or not self.current_id:

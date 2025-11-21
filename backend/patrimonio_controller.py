@@ -864,9 +864,13 @@ class PatrimonioController(QWidget):
         return bool(self.db_manager.execute_query(query, params))
 
     def excluir_patrimonio(self) -> None:
-        # Verificar permissão de admin
-        if not self.current_user or self.current_user.get('nivel_acesso') != 'admin':
-            QMessageBox.warning(self.ui, "Patrimônio", "Você não tem permissão para realizar esta ação.")
+        # Verificar permissão de admin/master
+        if not DatabaseManager.has_admin_privileges(self.current_user):
+            QMessageBox.warning(
+                self.ui,
+                "Patrimônio",
+                "Ação permitida apenas para administradores ou usuários master.",
+            )
             return
         
         if not self.table:

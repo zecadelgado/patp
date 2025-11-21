@@ -217,9 +217,13 @@ class AnexosController:
         self.refresh()
 
     def _remover_anexo(self) -> None:
-        # Verificar permissão de admin
-        if not self.current_user or self.current_user.get('nivel_acesso') != 'admin':
-            QMessageBox.warning(self.widget, "Anexos", "Você não tem permissão para realizar esta ação.")
+        # Verificar permissão de admin/master
+        if not DatabaseManager.has_admin_privileges(self.current_user):
+            QMessageBox.warning(
+                self.widget,
+                "Anexos",
+                "Ação permitida apenas para administradores ou usuários master.",
+            )
             return
         
         if not self.table:
