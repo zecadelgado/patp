@@ -222,9 +222,13 @@ class ManutencaoController:
         self._set_edit_mode(True)
 
     def _delete_selected(self) -> None:
-        # Verificar permissão de admin
-        if not self.current_user or self.current_user.get('nivel_acesso') != 'admin':
-            QMessageBox.warning(self.widget, "Manutenções", "Você não tem permissão para realizar esta ação.")
+        # Verificar permissão de admin/master
+        if not DatabaseManager.has_admin_privileges(self.current_user):
+            QMessageBox.warning(
+                self.widget,
+                "Manutenções",
+                "Ação permitida apenas para administradores ou usuários master.",
+            )
             return
         
         record = self._selected_record()
