@@ -183,7 +183,7 @@ class FornecedoresController:
             cursor = conn.cursor()
             if self.current_id is None:
                 # Filtrar campos None para não inserir valores nulos como string
-                filtered_data = {k: v for k, v in data.items() if v is not None}
+                filtered_data = {k: v for k, v in data.items() if k and v is not None}
                 columns_fragment = ", ".join(f"`{col}`" for col in filtered_data.keys())
                 values_fragment = ", ".join(["%s"] * len(filtered_data))
                 sql = f"INSERT INTO fornecedores ({columns_fragment}) VALUES ({values_fragment})"
@@ -192,9 +192,10 @@ class FornecedoresController:
                 self.current_id = cursor.lastrowid
                 QMessageBox.information(self.widget, "Fornecedores", "Fornecedor cadastrado com sucesso.")
             else:
-                set_fragment = ", ".join(f"`{col}` = %s" for col in data.keys())
+                valid_items = {k: v for k, v in data.items() if k}
+                set_fragment = ", ".join(f"`{col}` = %s" for col in valid_items.keys())
                 sql = f"UPDATE fornecedores SET {set_fragment} WHERE `{self._columns['id']}` = %s"
-                params = list(data.values())
+                params = list(valid_items.values())
                 params.append(self.current_id)
                 cursor.execute(sql, tuple(params))
                 conn.commit()
@@ -370,12 +371,20 @@ class FornecedoresController:
                   
     def _collect_form_data(self):
         data: Dict[str, Optional[str]] = {}
+        missing_columns: List[str] = []
+
+        def add_if_column_exists(column_key: str, value: Optional[str]):
+            column_name = self._columns.get(column_key)
+            if not column_name:
+                missing_columns.append(column_key)
+                return
+            data[column_name] = value
 
         nome_widget = self._fields_line_edit.get("nome")
         nome_valor = nome_widget.text().strip() if nome_widget else ""
         if not nome_valor:
             return None, "Informe o nome ou razão social do fornecedor."
-        data[self._columns["nome"]] = nome_valor
+        add_if_column_exists("nome", nome_valor)
 
         # Validar CNPJ se preenchido
         cnpj_widget = self._fields_line_edit.get("cnpj")
@@ -386,10 +395,10 @@ class FornecedoresController:
                 if not valido:
                     return None, mensagem
                 # Armazenar CNPJ sem máscara
-                data[self._columns["cnpj"]] = remover_mascara_cnpj(cnpj_valor)
+                add_if_column_exists("cnpj", remover_mascara_cnpj(cnpj_valor))
             else:
-                data[self._columns["cnpj"]] = None
-        
+                add_if_column_exists("cnpj", None)
+
         # Validar telefone se preenchido
         telefone_widget = self._fields_line_edit.get("telefone")
         if telefone_widget:
@@ -399,10 +408,10 @@ class FornecedoresController:
                 if not valido:
                     return None, mensagem
                 # Armazenar telefone sem máscara
-                data[self._columns["telefone"]] = remover_mascara_telefone(telefone_valor)
+                add_if_column_exists("telefone", remover_mascara_telefone(telefone_valor))
             else:
-                data[self._columns["telefone"]] = None
-        
+                add_if_column_exists("telefone", None)
+
         # Validar e-mail se preenchido
         email_widget = self._fields_line_edit.get("email")
         if email_widget:
@@ -411,25 +420,36 @@ class FornecedoresController:
                 valido, mensagem = validar_email(email_valor)
                 if not valido:
                     return None, mensagem
-                data[self._columns["email"]] = email_valor
+                add_if_column_exists("email", email_valor)
             else:
-                data[self._columns["email"]] = None
-        
+                add_if_column_exists("email", None)
+
         # Campos restantes
         inscricao_widget = self._fields_line_edit.get("inscricao_estadual")
         if inscricao_widget:
             inscricao_valor = self._normalize_mask_text(inscricao_widget.text()).strip()
-            data[self._columns["inscricao_estadual"]] = inscricao_valor if inscricao_valor else None
-        
+            add_if_column_exists("inscricao_estadual", inscricao_valor if inscricao_valor else None)
+
         contato_widget = self._fields_line_edit.get("contato")
         if contato_widget:
             contato_valor = contato_widget.text().strip()
-            data[self._columns["contato"]] = contato_valor if contato_valor else None
+            add_if_column_exists("contato", contato_valor if contato_valor else None)
 
         observacoes_col = self._columns.get("observacoes")
         if observacoes_col and self._field_observacoes:
             texto = self._field_observacoes.toPlainText().strip()
             data[observacoes_col] = texto if texto else None
+        elif self._field_observacoes:
+            missing_columns.append("observacoes")
+
+        if missing_columns:
+            QMessageBox.warning(
+                self.widget,
+                "Fornecedores",
+                "Colunas não encontradas na tabela 'fornecedores': "
+                + ", ".join(sorted(set(missing_columns)))
+                + ". Esses campos foram ignorados.",
+            )
 
         return data, None
 
