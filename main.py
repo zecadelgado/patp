@@ -117,6 +117,7 @@ class NeoBenesysApp:
 
         btn_entrar = self.login.findChild(QPushButton, "btn_entrar")
         btn_cadastrar = self.login.findChild(QPushButton, "btn_cadastrar")
+        btn_esqueci_senha = self.login.findChild(QPushButton, "btn_esqueci_senha")
 
         if btn_entrar is not None:
             btn_entrar.clicked.connect(self.handle_login)
@@ -127,6 +128,11 @@ class NeoBenesysApp:
             btn_cadastrar.clicked.connect(self.abrir_cadastro)
         else:
             print("[Aviso] Botão 'btn_cadastrar' não encontrado no login.ui")
+
+        if btn_esqueci_senha is not None:
+            btn_esqueci_senha.clicked.connect(self.abrir_recuperar_senha_dialog)
+        else:
+            print("[Aviso] Botão 'btn_esqueci_senha' não encontrado no login.ui")
 
         self.dashboard = None
         self.cadastro = None
@@ -140,6 +146,8 @@ class NeoBenesysApp:
         self._calendar_highlighted_dates = []
         self._auditorias_por_data = {}
         self._calendar_setup_done = False
+        self.recuperar_dialog = None
+        self.redefinir_dialog = None
 
     def _apply_theme_if_needed(self, widget=None):
         if self._theme_applied or not self._global_theme or widget is None:
@@ -177,6 +185,110 @@ class NeoBenesysApp:
             self.abrir_dashboard()
         else:
             QMessageBox.warning(None, "Login", "Email ou senha incorretos, ou usuário inativo.")
+
+    def abrir_recuperar_senha_dialog(self):
+        self.recuperar_dialog = load_ui("recuperar_senha.ui")
+        self.recuperar_dialog.setWindowTitle("Recuperar senha")
+
+        btn_enviar = self.recuperar_dialog.findChild(QPushButton, "btn_enviar_token")
+        btn_cancelar = self.recuperar_dialog.findChild(QPushButton, "btn_cancelar_recuperar")
+        btn_ir_redefinir = self.recuperar_dialog.findChild(QPushButton, "btn_ir_redefinir")
+
+        if btn_enviar is not None:
+            btn_enviar.clicked.connect(self.handle_recuperar_senha)
+        if btn_cancelar is not None:
+            btn_cancelar.clicked.connect(self.recuperar_dialog.close)
+        if btn_ir_redefinir is not None:
+            btn_ir_redefinir.clicked.connect(lambda: self.abrir_redefinir_senha_dialog())
+
+        self.recuperar_dialog.show()
+
+    def handle_recuperar_senha(self):
+        if not self.recuperar_dialog:
+            return
+
+        email_input = self.recuperar_dialog.findChild(QLineEdit, "txt_email_recuperar")
+        email = email_input.text().strip() if email_input else ""
+
+        valido, mensagem = validar_email(email)
+        if not valido:
+            QMessageBox.warning(self.recuperar_dialog, "Recuperação de senha", mensagem)
+            return
+
+        sucesso, msg, token = self.db_manager.create_password_reset_token(email)
+        if sucesso:
+            QMessageBox.information(
+                self.recuperar_dialog,
+                "Recuperação de senha",
+                f"{msg}\n\nToken: {token}",
+            )
+            self.recuperar_dialog.close()
+            self.recuperar_dialog = None
+            self.abrir_redefinir_senha_dialog(token)
+        else:
+            QMessageBox.warning(self.recuperar_dialog, "Recuperação de senha", msg)
+
+    def abrir_redefinir_senha_dialog(self, token: str = ""):
+        if self.recuperar_dialog:
+            self.recuperar_dialog.close()
+            self.recuperar_dialog = None
+
+        self.redefinir_dialog = load_ui("redefinir_senha.ui")
+        self.redefinir_dialog.setWindowTitle("Redefinir senha")
+
+        token_input = self.redefinir_dialog.findChild(QLineEdit, "txt_token")
+        nova_senha_input = self.redefinir_dialog.findChild(QLineEdit, "txt_nova_senha")
+        confirmar_senha_input = self.redefinir_dialog.findChild(QLineEdit, "txt_confirmar_senha")
+
+        if token and token_input:
+            token_input.setText(token)
+
+        btn_redefinir = self.redefinir_dialog.findChild(QPushButton, "btn_confirmar_redefinir")
+        btn_cancelar = self.redefinir_dialog.findChild(QPushButton, "btn_cancelar_redefinir")
+
+        if btn_redefinir is not None:
+            btn_redefinir.clicked.connect(self.handle_redefinir_senha)
+        if btn_cancelar is not None:
+            btn_cancelar.clicked.connect(self.redefinir_dialog.close)
+
+        self.redefinir_dialog.show()
+
+    def handle_redefinir_senha(self):
+        if not self.redefinir_dialog:
+            return
+
+        token_input = self.redefinir_dialog.findChild(QLineEdit, "txt_token")
+        nova_senha_input = self.redefinir_dialog.findChild(QLineEdit, "txt_nova_senha")
+        confirmar_senha_input = self.redefinir_dialog.findChild(QLineEdit, "txt_confirmar_senha")
+
+        token = token_input.text().strip() if token_input else ""
+        nova_senha = nova_senha_input.text() if nova_senha_input else ""
+        confirmar_senha = confirmar_senha_input.text() if confirmar_senha_input else ""
+
+        if not token:
+            QMessageBox.warning(self.redefinir_dialog, "Redefinir senha", "Informe o token recebido.")
+            return
+
+        if not nova_senha or not confirmar_senha:
+            QMessageBox.warning(self.redefinir_dialog, "Redefinir senha", "Preencha a nova senha e a confirmação.")
+            return
+
+        if nova_senha != confirmar_senha:
+            QMessageBox.warning(self.redefinir_dialog, "Redefinir senha", "As senhas não conferem.")
+            return
+
+        valido, mensagem = validar_senha(nova_senha)
+        if not valido:
+            QMessageBox.warning(self.redefinir_dialog, "Redefinir senha", mensagem)
+            return
+
+        sucesso, msg = self.db_manager.reset_password_with_token(token, nova_senha)
+        if sucesso:
+            QMessageBox.information(self.redefinir_dialog, "Redefinir senha", msg)
+            self.redefinir_dialog.close()
+            self.redefinir_dialog = None
+        else:
+            QMessageBox.warning(self.redefinir_dialog, "Redefinir senha", msg)
 
     def abrir_cadastro(self):
         self.cadastro = load_ui("cadastro.ui")

@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 import mimetypes
 import os
-from datetime import date, datetime
+import secrets
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
@@ -14,6 +15,7 @@ import bcrypt
 
 from config_db import get_connection
 from cache_manager import CacheManager
+from validators import validar_senha
 
 
 class DatabaseManager:
@@ -86,6 +88,7 @@ class DatabaseManager:
         self.cache = CacheManager()
         self._manutencao_columns: Optional[Set[str]] = None
         self._manutencao_schema_checked: bool = False
+        self._password_reset_table_checked: bool = False
 
     def connect(self):
         try:
@@ -315,6 +318,132 @@ class DatabaseManager:
         sql = "UPDATE usuarios SET ativo = %s WHERE id_usuario = %s"
         rows = self.execute_query(sql, (1 if active else 0, user_id))
         return bool(rows)
+
+    def _ensure_password_reset_table(self) -> None:
+        if self._password_reset_table_checked:
+            return
+        create_sql = """
+        CREATE TABLE IF NOT EXISTS password_resets (
+            id_reset INT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            token_hash VARCHAR(255) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            used_at DATETIME NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            ativo TINYINT(1) NOT NULL DEFAULT 1,
+            CONSTRAINT fk_password_resets_user FOREIGN KEY (user_id) REFERENCES usuarios(id_usuario)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        """
+        self.execute_query(create_sql)
+        self._password_reset_table_checked = True
+
+    def _deactivate_password_reset_tokens(self, user_id: int) -> None:
+        self._ensure_password_reset_table()
+        self.execute_query(
+            "UPDATE password_resets SET ativo = 0 WHERE user_id = %s AND ativo = 1",
+            (user_id,),
+        )
+
+    def _mark_reset_token_used(self, token_id: int) -> None:
+        self._ensure_password_reset_table()
+        self.execute_query(
+            "UPDATE password_resets SET used_at = %s, ativo = 0 WHERE id_reset = %s",
+            (datetime.utcnow(), token_id),
+        )
+
+    def create_password_reset_token(
+        self, email: str, expiration_minutes: int = 30
+    ) -> Tuple[bool, str, Optional[str]]:
+        self._ensure_password_reset_table()
+        user = self.get_user_by_email(email)
+        if not user:
+            return False, "Usuário não encontrado ou inativo.", None
+
+        try:
+            user_id = int(user.get("id_usuario"))
+        except (TypeError, ValueError):
+            return False, "Usuário inválido.", None
+
+        self._deactivate_password_reset_tokens(user_id)
+
+        token = secrets.token_urlsafe(20)
+        token_hash = bcrypt.hashpw(token.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        expires_at = datetime.utcnow() + timedelta(minutes=expiration_minutes)
+
+        inserted = self.execute_query(
+            "INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (%s, %s, %s)",
+            (user_id, token_hash, expires_at),
+        )
+
+        if not inserted:
+            return False, "Não foi possível gerar um token de recuperação.", None
+
+        return True, (
+            "Token de recuperação criado com sucesso. Caso não receba um e-mail, utilize o código exibido para redefinir sua senha."
+        ), token
+
+    def _match_reset_token(self, token: str) -> Tuple[Optional[dict], Optional[str]]:
+        self._ensure_password_reset_table()
+        now = datetime.utcnow()
+        self.execute_query(
+            "UPDATE password_resets SET ativo = 0 WHERE expires_at < %s OR used_at IS NOT NULL",
+            (now,),
+        )
+        tokens = self.fetch_all(
+            "SELECT * FROM password_resets WHERE ativo = 1 ORDER BY created_at DESC"
+        )
+
+        for row in tokens:
+            stored_hash = row.get("token_hash")
+            if not stored_hash:
+                continue
+            try:
+                if not bcrypt.checkpw(token.encode("utf-8"), stored_hash.encode("utf-8")):
+                    continue
+            except Exception:
+                continue
+
+            if row.get("used_at"):
+                return None, "Token já utilizado. Solicite um novo código."
+
+            expires_at = row.get("expires_at")
+            if expires_at and expires_at < now:
+                self.execute_query(
+                    "UPDATE password_resets SET ativo = 0 WHERE id_reset = %s",
+                    (row.get("id_reset"),),
+                )
+                return None, "Token expirado. Solicite um novo código."
+
+            return row, None
+
+        return None, "Token inválido."
+
+    def reset_password_with_token(self, token: str, new_password: str) -> Tuple[bool, str]:
+        valido, mensagem = validar_senha(new_password)
+        if not valido:
+            return False, mensagem
+
+        token_row, token_error = self._match_reset_token(token)
+        if not token_row:
+            return False, token_error or "Token inválido."
+
+        user_id = token_row.get("user_id")
+        if not user_id:
+            return False, "Token não está vinculado a um usuário válido."
+
+        senha_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        updated = self.update_user(user_id, {"senha": senha_hash})
+        if not updated:
+            return False, "Não foi possível atualizar a senha."
+
+        token_id = token_row.get("id_reset")
+        if token_id:
+            self._mark_reset_token_used(token_id)
+
+        # Invalida eventuais outros tokens ativos do usuário
+        self._deactivate_password_reset_tokens(user_id)
+
+        return True, "Senha redefinida com sucesso."
 
     def ensure_patrimonio_optional_columns(self) -> None:
         try:
