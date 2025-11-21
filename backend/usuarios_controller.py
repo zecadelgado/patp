@@ -238,27 +238,21 @@ class UsuariosController:
                                                                           
                    
     def _handle_novo(self) -> None:
-        allowed_roles = self._allowed_roles_to_assign()
-        if not allowed_roles:
-            QMessageBox.warning(
-                self.widget,
-                "Usuários",
-                "Seu nível de acesso não permite criar novos usuários.",
-            )
-            return
-
-        dialog = _UsuarioDialog(
-            parent=self.widget,
-            title="Novo usuário",
-            allowed_roles=allowed_roles,
-        )
+        dialog = _UsuarioDialog(parent=self.widget, title="Novo usuário", current_user=self.current_user)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         dados = dialog.collect_data()
         if not dados:
             return
-        if not self._can_assign_role(dados.get("nivel_acesso")):
-            self._show_hierarchy_warning(dados.get("nivel_acesso"))
+        if (
+            dados.get("nivel_acesso") == "master"
+            and not DatabaseManager.has_master_privileges(self.current_user)
+        ):
+            QMessageBox.warning(
+                self.widget,
+                "Usuários",
+                "Apenas um usuário master pode criar outro usuário master.",
+            )
             return
         try:
             user = self.db_manager.create_user(
@@ -295,15 +289,18 @@ class UsuariosController:
         if not usuario:
             QMessageBox.information(self.widget, "Usuários", "Selecione um usuário para editar.")
             return
-
-        if not self._can_manage(usuario.nivel_acesso):
-            self._show_hierarchy_warning(usuario.nivel_acesso)
+        if usuario.nivel_acesso == "master" and not DatabaseManager.has_master_privileges(self.current_user):
+            QMessageBox.warning(
+                self.widget,
+                "Usuários",
+                "Somente um usuário master pode editar outro usuário com papel master.",
+            )
             return
         dialog = _UsuarioDialog(
             parent=self.widget,
             title=f"Editar usuário #{usuario.id_usuario}",
             usuario=usuario,
-            allowed_roles=self._allowed_roles_to_assign(usuario.nivel_acesso),
+            current_user=self.current_user,
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -312,8 +309,15 @@ class UsuariosController:
             # Gerar hash da nova senha
             senha_hash = bcrypt.hashpw(dialog.password_value.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             dados["senha"] = senha_hash
-        if not self._can_assign_role(dados.get("nivel_acesso")):
-            self._show_hierarchy_warning(dados.get("nivel_acesso"))
+        if (
+            dados.get("nivel_acesso") == "master"
+            and not DatabaseManager.has_master_privileges(self.current_user)
+        ):
+            QMessageBox.warning(
+                self.widget,
+                "Usuários",
+                "Apenas um usuário master pode atribuir ou manter o papel master.",
+            )
             return
         try:
             self.db_manager.update_user(usuario.id_usuario, dados)
@@ -332,6 +336,15 @@ class UsuariosController:
         self.refresh()
 
     def _handle_excluir(self) -> None:
+        # Verificar permissão de admin/master
+        if not DatabaseManager.has_admin_privileges(self.current_user):
+            QMessageBox.warning(
+                self.widget,
+                "Usuários",
+                "Ação permitida apenas para administradores ou usuários master.",
+            )
+            return
+        
         usuario = self._usuario_selecionado()
         if not usuario:
             QMessageBox.information(self.widget, "Usuários", "Selecione um usuário para excluir.")
@@ -391,13 +404,15 @@ class _UsuarioDialog(QDialog):
         parent: QWidget,
         title: str,
         usuario: Optional[_UserRecord] = None,
-        allowed_roles: Optional[List[str]] = None,
+        current_user: Optional[dict] = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
         self.usuario = usuario
+        self.current_user = current_user or {}
         self.password_changed = False
         self.password_value = ""
+        self._is_master_user = DatabaseManager.has_master_privileges(self.current_user)
 
         self.allowed_roles = allowed_roles or ["admin", "user"]
 
@@ -411,7 +426,16 @@ class _UsuarioDialog(QDialog):
         self.senha_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.confirmacao_input.setEchoMode(QLineEdit.EchoMode.Password)
 
-        self.nivel_combo.addItems(self.allowed_roles)
+        self.nivel_combo.addItems(["master", "admin", "user"])
+        if not self._is_master_user:
+            master_index = self.nivel_combo.findText("master", Qt.MatchFlag.MatchFixedString)
+            if master_index >= 0:
+                model = self.nivel_combo.model()
+                item = model.item(master_index) if hasattr(model, "item") else None
+                if item:
+                    item.setEnabled(False)
+                    item.setData(Qt.ItemDataRole.ToolTipRole, "Apenas um usuário master pode atribuir este papel.")
+        self.nivel_combo.setCurrentText("user")
 
         form_layout = QFormLayout()
         form_layout.addRow("Nome:", self.nome_input)
@@ -462,7 +486,23 @@ class _UsuarioDialog(QDialog):
         if not valido_email:
             QMessageBox.warning(self, "Usuários", msg_email)
             return
-        
+
+        role = self.nivel_combo.currentText()
+        if role == "master" and not self._is_master_user:
+            QMessageBox.warning(
+                self,
+                "Usuários",
+                "Apenas um usuário master pode atribuir o papel master.",
+            )
+            return
+        if self.usuario and self.usuario.nivel_acesso == "master" and not self._is_master_user:
+            QMessageBox.warning(
+                self,
+                "Usuários",
+                "Você não pode editar um usuário com papel master.",
+            )
+            return
+
         senha = self.senha_input.text()
         confirmacao = self.confirmacao_input.text()
         

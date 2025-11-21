@@ -6,6 +6,7 @@ from typing import Dict, List, Optional
 import mysql.connector
 from PySide6.QtCore import Qt
 from validators import validar_cnpj, validar_telefone, validar_email, remover_mascara_cnpj, remover_mascara_telefone
+from database_manager import DatabaseManager
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QLineEdit,
@@ -218,9 +219,13 @@ class FornecedoresController:
         self._set_buttons_state()
 
     def _handle_excluir(self):
-        # Verificar permissão de admin
-        if not self.current_user or self.current_user.get('nivel_acesso') != 'admin':
-            QMessageBox.warning(self.widget, "Fornecedores", "Você não tem permissão para realizar esta ação.")
+        # Verificar permissão de admin/master
+        if not DatabaseManager.has_admin_privileges(self.current_user):
+            QMessageBox.warning(
+                self.widget,
+                "Fornecedores",
+                "Ação permitida apenas para administradores ou usuários master.",
+            )
             return
         
         if not self._ready or not self.current_id:

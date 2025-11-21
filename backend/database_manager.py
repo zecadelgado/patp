@@ -21,6 +21,8 @@ from validators import validar_senha
 class DatabaseManager:
     """Encapsula as interações com o banco de dados."""
 
+    VALID_ROLES: Tuple[str, ...] = ("master", "admin", "user")
+
     _ANEXO_CONFIG: Dict[str, Dict[str, Any]] = {
         "patrimonio": {
             "table": "anexos",
@@ -233,9 +235,10 @@ class DatabaseManager:
 
         # Gerar hash da senha usando bcrypt
         senha_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        
+
+        role = self._normalize_role(nivel_acesso)
         columns = ["nome", "email", "senha", "nivel_acesso"]
-        values: List[Any] = [nome, email, senha_hash, nivel_acesso]
+        values: List[Any] = [nome, email, senha_hash, role]
 
         try:
             available = set(self.get_table_columns("usuarios"))
@@ -267,6 +270,11 @@ class DatabaseManager:
         for key, value in data.items():
             if key not in allowed or key == "id_usuario":
                 continue
+            if key == "nivel_acesso":
+                role = self._normalize_role(str(value))
+                updates.append("`nivel_acesso` = %s")
+                params.append(role)
+                continue
             updates.append(f"`{key}` = %s")
             params.append(value)
 
@@ -277,6 +285,23 @@ class DatabaseManager:
         sql = f"UPDATE usuarios SET {', '.join(updates)} WHERE id_usuario = %s"
         rows = self.execute_query(sql, tuple(params))
         return bool(rows)
+
+    def _normalize_role(self, nivel_acesso: Optional[str]) -> str:
+        if not nivel_acesso:
+            return "user"
+        role = str(nivel_acesso).strip().lower()
+        if role not in self.VALID_ROLES:
+            return "user"
+        return role
+
+    @staticmethod
+    def has_master_privileges(user: Optional[Dict[str, Any]]) -> bool:
+        return bool(user and str(user.get("nivel_acesso", "")).lower() == "master")
+
+    @staticmethod
+    def has_admin_privileges(user: Optional[Dict[str, Any]]) -> bool:
+        role = str(user.get("nivel_acesso", "")).lower() if user else ""
+        return role in {"admin", "master"}
 
     def delete_user(self, user_id: int) -> bool:
         sql = "DELETE FROM usuarios WHERE id_usuario = %s"

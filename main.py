@@ -411,9 +411,10 @@ class NeoBenesysApp:
         }
 
         # Controle de acesso por nível de usuário
-        is_admin = self.current_user and self.current_user.get('nivel_acesso') == 'admin'
-        
-        # Telas restritas apenas para admin
+        role = (self.current_user or {}).get('nivel_acesso')
+        has_admin_access = role in {'admin', 'master'}
+
+        # Telas restritas apenas para admin/master
         admin_only_screens = ['usuarios', 'auditoria']
         
         for btn_name, screen_key in button_map.items():
@@ -426,7 +427,7 @@ class NeoBenesysApp:
                 continue
             
             # Ocultar botões de telas restritas para usuários não-admin
-            if screen_key in admin_only_screens and not is_admin:
+            if screen_key in admin_only_screens and not has_admin_access:
                 btn.setVisible(False)
                 continue
 
