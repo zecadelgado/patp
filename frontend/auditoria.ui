@@ -1,0 +1,425 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<ui version="4.0">
+  <class>AuditoriaWindow</class>
+  <widget class="QWidget" name="AuditoriaWindow">
+    <property name="geometry">
+      <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>1100</width>
+        <height>750</height>
+      </rect>
+    </property>
+    <property name="windowTitle">
+      <string>Auditoria</string>
+    </property>
+    <layout class="QVBoxLayout" name="verticalLayout">
+      <property name="spacing">
+        <number>20</number>
+      </property>
+      <property name="leftMargin">
+        <number>24</number>
+      </property>
+      <property name="topMargin">
+        <number>24</number>
+      </property>
+      <property name="rightMargin">
+        <number>24</number>
+      </property>
+      <property name="bottomMargin">
+        <number>24</number>
+      </property>
+      <item>
+        <widget class="QLabel" name="lbl_title">
+          <property name="text">
+            <string>Auditoria</string>
+          </property>
+          <property name="alignment">
+            <set>Qt::AlignmentFlag::AlignLeft | Qt::AlignmentFlag::AlignVCenter</set>
+          </property>
+        </widget>
+      </item>
+      <item>
+        <widget class="QTabWidget" name="tabWidget">
+          <widget class="QWidget" name="tab_lista">
+            <attribute name="title">
+              <string>Lista</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="v1">
+              <item>
+                <widget class="QTableWidget" name="tbl_auditoria">
+                  <property name="editTriggers">
+                    <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                  </property>
+                  <property name="selectionBehavior">
+                    <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+                  </property>
+                  <property name="rowCount">
+                    <number>0</number>
+                  </property>
+                  <property name="columnCount">
+                    <number>5</number>
+                  </property>
+                  <column>
+                    <property name="text">
+                      <string>Data</string>
+                    </property>
+                  </column>
+                  <column>
+                    <property name="text">
+                      <string>Tabela</string>
+                    </property>
+                  </column>
+                  <column>
+                    <property name="text">
+                      <string>Registro</string>
+                    </property>
+                  </column>
+                  <column>
+                    <property name="text">
+                      <string>Ação</string>
+                    </property>
+                  </column>
+                  <column>
+                    <property name="text">
+                      <string>Usuário</string>
+                    </property>
+                  </column>
+                </widget>
+              </item>
+              <item>
+                <layout class="QHBoxLayout" name="hbox_lista_acoes">
+                  <item>
+                    <widget class="QPushButton" name="btn_atualizar_lista_auditoria">
+                      <property name="text">
+                        <string>Atualizar lista</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item>
+                    <widget class="QPushButton" name="btn_editar_auditoria">
+                      <property name="text">
+                        <string>Editar selecionada</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item>
+                    <spacer name="spacer_lista">
+                      <property name="orientation">
+                        <enum>Qt::Orientation::Horizontal</enum>
+                      </property>
+                      <property name="sizeHint" stdset="0">
+                        <size>
+                          <width>40</width>
+                          <height>20</height>
+                        </size>
+                      </property>
+                    </spacer>
+                  </item>
+                </layout>
+              </item>
+            </layout>
+          </widget>
+          <widget class="QWidget" name="tab_agendar">
+            <attribute name="title">
+              <string>Agendar</string>
+            </attribute>
+            <layout class="QFormLayout" name="form_agendar">
+              <property name="horizontalSpacing">
+                <number>20</number>
+              </property>
+              <property name="verticalSpacing">
+                <number>16</number>
+              </property>
+              <item row="0" column="0">
+                <widget class="QLabel" name="lblData">
+                  <property name="text">
+                    <string>Data programada</string>
+                  </property>
+                </widget>
+              </item>
+              <item row="0" column="1">
+                <widget class="QDateTimeEdit" name="dt_agendamento">
+                  <property name="calendarPopup">
+                    <bool>true</bool>
+                  </property>
+                  <property name="displayFormat">
+                    <string>dd/MM/yyyy HH:mm</string>
+                  </property>
+                </widget>
+              </item>
+              <item row="1" column="0">
+                <widget class="QLabel" name="lblTabela">
+                  <property name="text">
+                    <string>Tabela alvo</string>
+                  </property>
+                </widget>
+              </item>
+              <item row="1" column="1">
+                <widget class="QComboBox" name="cb_tabela_auditoria">
+                  <item>
+                    <property name="text">
+                      <string>patrimonios</string>
+                    </property>
+                  </item>
+                  <item>
+                    <property name="text">
+                      <string>manutencoes</string>
+                    </property>
+                  </item>
+                  <item>
+                    <property name="text">
+                      <string>movimentacoes</string>
+                    </property>
+                  </item>
+                  <item>
+                    <property name="text">
+                      <string>notas_fiscais</string>
+                    </property>
+                  </item>
+                  <item>
+                    <property name="text">
+                      <string>setores_locais</string>
+                    </property>
+                  </item>
+                </widget>
+              </item>
+              <item row="2" column="0">
+                <widget class="QLabel" name="lblRegistro">
+                  <property name="text">
+                    <string>ID do registro</string>
+                  </property>
+                </widget>
+              </item>
+              <item row="2" column="1">
+                <widget class="QSpinBox" name="sb_registro_auditoria">
+                  <property name="maximum">
+                    <number>999999999</number>
+                  </property>
+                </widget>
+              </item>
+              <item row="3" column="0">
+                <widget class="QLabel" name="lblAcao">
+                  <property name="text">
+                    <string>Ação</string>
+                  </property>
+                </widget>
+              </item>
+              <item row="3" column="1">
+                <widget class="QLineEdit" name="le_acao_auditoria" />
+              </item>
+              <item row="4" column="0">
+                <widget class="QLabel" name="lblObservacoes">
+                  <property name="text">
+                    <string>Observações</string>
+                  </property>
+                </widget>
+              </item>
+              <item row="4" column="1">
+                <widget class="QPlainTextEdit" name="pte_observacoes_auditoria">
+                  <property name="minimumSize">
+                    <size>
+                      <width>0</width>
+                      <height>140</height>
+                    </size>
+                  </property>
+                </widget>
+              </item>
+              <item row="5" column="0">
+                <widget class="QLabel" name="lblItensAuditoria">
+                  <property name="text">
+                    <string>Itens a verificar</string>
+                  </property>
+                </widget>
+              </item>
+              <item row="5" column="1">
+                <widget class="QFrame" name="frame_itens_auditoria">
+                  <property name="frameShape">
+                    <enum>QFrame::Shape::NoFrame</enum>
+                  </property>
+                  <layout class="QVBoxLayout" name="verticalLayout_itens">
+                    <property name="spacing">
+                      <number>12</number>
+                    </property>
+                    <item>
+                      <layout class="QHBoxLayout" name="layout_item_inputs">
+                        <item>
+                          <widget class="QLineEdit" name="le_item_id_auditoria">
+                            <property name="placeholderText">
+                              <string>ID / Número</string>
+                            </property>
+                          </widget>
+                        </item>
+                        <item>
+                          <widget class="QLineEdit" name="le_item_descricao_auditoria">
+                            <property name="placeholderText">
+                              <string>Descrição do item</string>
+                            </property>
+                          </widget>
+                        </item>
+                        <item>
+                          <widget class="QComboBox" name="cb_item_conformidade">
+                            <item>
+                              <property name="text">
+                                <string>Conforme</string>
+                              </property>
+                            </item>
+                            <item>
+                              <property name="text">
+                                <string>Não conforme</string>
+                              </property>
+                            </item>
+                          </widget>
+                        </item>
+                        <item>
+                          <widget class="QPushButton" name="btn_add_item_auditoria">
+                            <property name="text">
+                              <string>Adicionar</string>
+                            </property>
+                          </widget>
+                        </item>
+                      </layout>
+                    </item>
+                    <item>
+                      <widget class="QLabel" name="lbl_item_observacao">
+                        <property name="text">
+                          <string>Observações (obrigatório quando não conforme)</string>
+                        </property>
+                      </widget>
+                    </item>
+                    <item>
+                      <widget class="QPlainTextEdit" name="pte_item_observacao">
+                        <property name="minimumSize">
+                          <size>
+                            <width>0</width>
+                            <height>80</height>
+                          </size>
+                        </property>
+                      </widget>
+                    </item>
+                    <item>
+                      <widget class="QTableWidget" name="tbl_itens_auditoria">
+                        <property name="editTriggers">
+                          <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                        </property>
+                        <property name="selectionBehavior">
+                          <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+                        </property>
+                        <property name="rowCount">
+                          <number>0</number>
+                        </property>
+                        <property name="columnCount">
+                          <number>4</number>
+                        </property>
+                        <column>
+                          <property name="text">
+                            <string>Patrimônio/Item</string>
+                          </property>
+                        </column>
+                        <column>
+                          <property name="text">
+                            <string>Descrição</string>
+                          </property>
+                        </column>
+                        <column>
+                          <property name="text">
+                            <string>Status</string>
+                          </property>
+                        </column>
+                        <column>
+                          <property name="text">
+                            <string>Observação</string>
+                          </property>
+                        </column>
+                      </widget>
+                    </item>
+                    <item>
+                      <layout class="QHBoxLayout" name="layout_itens_acoes">
+                        <item>
+                          <widget class="QPushButton" name="btn_remover_item_auditoria">
+                            <property name="text">
+                              <string>Remover selecionado</string>
+                            </property>
+                          </widget>
+                        </item>
+                        <item>
+                          <spacer name="spacer_itens">
+                            <property name="orientation">
+                              <enum>Qt::Orientation::Horizontal</enum>
+                            </property>
+                            <property name="sizeHint" stdset="0">
+                              <size>
+                                <width>40</width>
+                                <height>20</height>
+                              </size>
+                            </property>
+                          </spacer>
+                        </item>
+                      </layout>
+                    </item>
+                  </layout>
+                </widget>
+              </item>
+              <item row="6" column="0">
+                <spacer name="spacer_form_footer">
+                  <property name="orientation">
+                    <enum>Qt::Orientation::Vertical</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                    <size>
+                      <width>20</width>
+                      <height>20</height>
+                    </size>
+                  </property>
+                </spacer>
+              </item>
+              <item row="6" column="1">
+                <layout class="QHBoxLayout" name="hbox_agendar_botoes">
+                  <item>
+                    <widget class="QPushButton" name="btn_agendar_auditoria">
+                      <property name="text">
+                        <string>Agendar auditoria</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item>
+                    <widget class="QPushButton" name="btn_salvar_edicao_auditoria">
+                      <property name="enabled">
+                        <bool>false</bool>
+                      </property>
+                      <property name="text">
+                        <string>Salvar alterações</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item>
+                    <widget class="QPushButton" name="btn_limpar_form_auditoria">
+                      <property name="text">
+                        <string>Limpar</string>
+                      </property>
+                    </widget>
+                  </item>
+                  <item>
+                    <spacer name="spacer_agendar">
+                      <property name="orientation">
+                        <enum>Qt::Orientation::Horizontal</enum>
+                      </property>
+                      <property name="sizeHint" stdset="0">
+                        <size>
+                          <width>40</width>
+                          <height>20</height>
+                        </size>
+                      </property>
+                    </spacer>
+                  </item>
+                </layout>
+              </item>
+            </layout>
+          </widget>
+        </widget>
+      </item>
+    </layout>
+  </widget>
+  <resources />
+  <connections />
+</ui>
