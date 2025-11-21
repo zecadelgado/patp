@@ -349,9 +349,16 @@ class UsuariosController:
         if not usuario:
             QMessageBox.information(self.widget, "Usuários", "Selecione um usuário para excluir.")
             return
-
-        if not self._can_manage(usuario.nivel_acesso):
-            self._show_hierarchy_warning(usuario.nivel_acesso)
+        if (
+            usuario.nivel_acesso
+            and usuario.nivel_acesso.lower() == "master"
+            and not DatabaseManager.has_master_privileges(self.current_user)
+        ):
+            QMessageBox.warning(
+                self.widget,
+                "Usuários",
+                "Somente um usuário master pode remover outro usuário com papel master.",
+            )
             return
         resposta = QMessageBox.question(
             self.widget,
@@ -413,8 +420,6 @@ class _UsuarioDialog(QDialog):
         self.password_changed = False
         self.password_value = ""
         self._is_master_user = DatabaseManager.has_master_privileges(self.current_user)
-
-        self.allowed_roles = allowed_roles or ["admin", "user"]
 
         self.nome_input = QLineEdit(self)
         self.email_input = QLineEdit(self)
