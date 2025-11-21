@@ -359,6 +359,9 @@ class DatabaseManager:
         if not user:
             return False, "Usuário não encontrado ou inativo.", None
 
+        if "ativo" in user and not user.get("ativo"):
+            return False, "Usuário não encontrado ou inativo.", None
+
         try:
             user_id = int(user.get("id_usuario"))
         except (TypeError, ValueError):
