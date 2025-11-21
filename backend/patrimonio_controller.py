@@ -74,63 +74,9 @@ class PatrimonioController(QWidget):
         self.has_numero_nota_column = False
         self._refresh_optional_columns()
 
-        self._create_import_button()  # Criar botão de importação se não existir
         self._setup_ui_connections()
         self.populate_comboboxes()
         self.load_patrimonios()
-
-    def _create_import_button(self) -> None:
-        """Cria o botão de importação em massa programaticamente se não existir no .ui"""
-        # Verificar se o botão já existe
-        existing_btn = self.ui.findChild(QPushButton, "btn_importar")
-        if existing_btn:
-            return  # Botão já existe
-        
-        # Procurar pelo botão "Novo" para adicionar o botão de importação ao lado
-        btn_novo = self.ui.findChild(QPushButton, "btn_novo")
-        if not btn_novo:
-            print("[PatrimonioController] Botão 'btn_novo' não encontrado. Não foi possível adicionar botão de importação.")
-            return
-        
-        # Criar o botão de importação
-        btn_importar = QPushButton("📥 Importar em Massa")
-        btn_importar.setObjectName("btn_importar")
-        btn_importar.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-            QPushButton:pressed {
-                background-color: #21618c;
-            }
-        """)
-        
-        # Adicionar o botão ao layout do botão "Novo"
-        parent_layout = btn_novo.parent().layout()
-        if parent_layout:
-            # Encontrar o índice do btn_novo
-            index = -1
-            for i in range(parent_layout.count()):
-                item = parent_layout.itemAt(i)
-                if item and item.widget() == btn_novo:
-                    index = i
-                    break
-            
-            if index >= 0:
-                # Inserir o botão de importação logo após o botão "Novo"
-                parent_layout.insertWidget(index + 1, btn_importar)
-                print("[PatrimonioController] Botão de importação em massa criado com sucesso!")
-            else:
-                print("[PatrimonioController] Não foi possível encontrar posição do btn_novo")
-        else:
-            print("[PatrimonioController] Layout do botão 'btn_novo' não encontrado")
 
     def _setup_ui_connections(self) -> None:
         button_map = {
