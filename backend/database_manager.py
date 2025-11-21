@@ -6,7 +6,7 @@ import os
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 import mysql.connector # ignore
 from mysql.connector import errorcode
@@ -82,11 +82,14 @@ class DatabaseManager:
     def __init__(self):
         self.connection = None
         self.cache = CacheManager()
+        self._manutencao_columns: Optional[Set[str]] = None
+        self._manutencao_schema_checked: bool = False
 
     def connect(self):
         try:
             self.connection = get_connection()
             print("Conexao com o banco de dados estabelecida com sucesso!")
+            self._document_manutencao_migration_dependency()
             return True
         except mysql.connector.Error as err:
             print(f"Erro ao conectar ao banco de dados: {err}")
@@ -182,6 +185,44 @@ class DatabaseManager:
             return [row[0] for row in cursor.fetchall()]
         finally:
             cursor.close()
+
+    def _document_manutencao_migration_dependency(self):
+        if self._manutencao_schema_checked:
+            return
+        self._manutencao_schema_checked = True
+        try:
+            columns = set(self.get_table_columns("manutencoes"))
+            missing = [col for col in ("tipo_manutencao", "empresa") if col not in columns]
+            if missing:
+                print(
+                    "[Aviso] Estrutura de manutencoes incompleta: "
+                    f"faltam as colunas {', '.join(missing)}. "
+                    "Execute a migração database/migrations_manutencao.sql para habilitar todos os recursos."
+                )
+            self._manutencao_columns = columns
+        except mysql.connector.Error as err:
+            print(
+                "[Aviso] Não foi possível validar a estrutura da tabela manutencoes. "
+                "Certifique-se de aplicar database/migrations_manutencao.sql. Erro: "
+                f"{err}"
+            )
+            self._manutencao_columns = None
+
+    def _get_manutencao_columns(self) -> Set[str]:
+        if self._manutencao_columns is None:
+            try:
+                self._manutencao_columns = set(self.get_table_columns("manutencoes"))
+            except mysql.connector.Error:
+                self._manutencao_columns = {
+                    "id_patrimonio",
+                    "data_inicio",
+                    "data_fim",
+                    "descricao",
+                    "custo",
+                    "responsavel",
+                    "status",
+                }
+        return self._manutencao_columns
 
     def create_user(self, nome, email, password, nivel_acesso: str = "user", ativo: Optional[bool] = None):
         if self.get_user_by_email(email):
@@ -1035,20 +1076,7 @@ class DatabaseManager:
     def create_manutencao(self, data: Dict[str, Any]) -> int:
         if not data:
             raise ValueError("Dados de manutenção não informados.")
-        try:
-            allowed = set(self.get_table_columns("manutencoes"))
-        except mysql.connector.Error:
-            allowed = {
-                "id_patrimonio",
-                "data_inicio",
-                "data_fim",
-                "descricao",
-                "custo",
-                "responsavel",
-                "status",
-                "tipo_manutencao",
-                "empresa",
-            }
+        allowed = self._get_manutencao_columns()
         payload = {k: v for k, v in data.items() if k in allowed and k != "id_manutencao"}
         if not payload:
             raise ValueError("Nenhuma coluna válida para manutenção.")
@@ -1070,20 +1098,7 @@ class DatabaseManager:
     def update_manutencao(self, manutencao_id: int, data: Dict[str, Any]) -> bool:
         if not data:
             return False
-        try:
-            allowed = set(self.get_table_columns("manutencoes"))
-        except mysql.connector.Error:
-            allowed = {
-                "id_patrimonio",
-                "data_inicio",
-                "data_fim",
-                "descricao",
-                "custo",
-                "responsavel",
-                "status",
-                "tipo_manutencao",
-                "empresa",
-            }
+        allowed = self._get_manutencao_columns()
         updates: List[str] = []
         params: List[Any] = []
         for key, value in data.items():
