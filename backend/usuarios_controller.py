@@ -46,7 +46,7 @@ class UsuariosController:
     def __init__(self, widget: QWidget, db_manager: DatabaseManager, current_user=None) -> None:
         self.widget = widget
         self.db_manager = db_manager
-        self.current_user = current_user
+        self.current_user = current_user or {}
 
         self.table: Optional[QTableWidget] = self.widget.findChild(QTableWidget, "tbl_users")
         self.search_input: Optional[QLineEdit] = self.widget.findChild(QLineEdit, "le_search")
@@ -192,14 +192,73 @@ class UsuariosController:
         item.setFlags(flags)
         self.table.setItem(row, column, item)
 
+    def _current_level(self) -> str:
+        if isinstance(self.current_user, dict):
+            level = self.current_user.get("nivel_acesso")
+            if level:
+                return str(level).lower()
+        return "user"
+
+    def _allowed_roles_to_assign(self, existing_level: Optional[str] = None) -> List[str]:
+        level = self._current_level()
+        if level == "master":
+            return ["master", "admin", "user"]
+        if level == "admin":
+            return ["user"]
+        if existing_level and existing_level.lower() == "user":
+            return ["user"]
+        return ["user"] if existing_level is None else []
+
+    def _can_manage(self, target_level: Optional[str]) -> bool:
+        level = self._current_level()
+        target = (target_level or "user").lower()
+        if level == "master":
+            return True
+        if level == "admin":
+            return target == "user"
+        return level == "user" and target == "user"
+
+    def _can_assign_role(self, desired_level: Optional[str]) -> bool:
+        target = (desired_level or "user").lower()
+        return target in [role.lower() for role in self._allowed_roles_to_assign(desired_level)]
+
+    def _show_hierarchy_warning(self, target_level: Optional[str]) -> None:
+        target = (target_level or "usuário").lower()
+        level = self._current_level()
+        if target == "master":
+            msg = "Apenas usuários com papel master podem gerenciar contas master."
+        elif target == "admin":
+            msg = "Administradores não podem alterar ou remover outros administradores ou masters."
+        elif level == "user":
+            msg = "Usuários comuns não têm permissão para esta ação."
+        else:
+            msg = "Você não tem permissão para realizar esta ação para este papel."
+        QMessageBox.warning(self.widget, "Usuários", msg)
+
                                                                           
                    
     def _handle_novo(self) -> None:
-        dialog = _UsuarioDialog(parent=self.widget, title="Novo usuário")
+        allowed_roles = self._allowed_roles_to_assign()
+        if not allowed_roles:
+            QMessageBox.warning(
+                self.widget,
+                "Usuários",
+                "Seu nível de acesso não permite criar novos usuários.",
+            )
+            return
+
+        dialog = _UsuarioDialog(
+            parent=self.widget,
+            title="Novo usuário",
+            allowed_roles=allowed_roles,
+        )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         dados = dialog.collect_data()
         if not dados:
+            return
+        if not self._can_assign_role(dados.get("nivel_acesso")):
+            self._show_hierarchy_warning(dados.get("nivel_acesso"))
             return
         try:
             user = self.db_manager.create_user(
@@ -236,10 +295,15 @@ class UsuariosController:
         if not usuario:
             QMessageBox.information(self.widget, "Usuários", "Selecione um usuário para editar.")
             return
+
+        if not self._can_manage(usuario.nivel_acesso):
+            self._show_hierarchy_warning(usuario.nivel_acesso)
+            return
         dialog = _UsuarioDialog(
             parent=self.widget,
             title=f"Editar usuário #{usuario.id_usuario}",
             usuario=usuario,
+            allowed_roles=self._allowed_roles_to_assign(usuario.nivel_acesso),
         )
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
@@ -248,6 +312,9 @@ class UsuariosController:
             # Gerar hash da nova senha
             senha_hash = bcrypt.hashpw(dialog.password_value.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             dados["senha"] = senha_hash
+        if not self._can_assign_role(dados.get("nivel_acesso")):
+            self._show_hierarchy_warning(dados.get("nivel_acesso"))
+            return
         try:
             self.db_manager.update_user(usuario.id_usuario, dados)
             
@@ -265,14 +332,13 @@ class UsuariosController:
         self.refresh()
 
     def _handle_excluir(self) -> None:
-        # Verificar permissão de admin
-        if not self.current_user or self.current_user.get('nivel_acesso') != 'admin':
-            QMessageBox.warning(self.widget, "Usuários", "Você não tem permissão para realizar esta ação.")
-            return
-        
         usuario = self._usuario_selecionado()
         if not usuario:
             QMessageBox.information(self.widget, "Usuários", "Selecione um usuário para excluir.")
+            return
+
+        if not self._can_manage(usuario.nivel_acesso):
+            self._show_hierarchy_warning(usuario.nivel_acesso)
             return
         resposta = QMessageBox.question(
             self.widget,
@@ -325,12 +391,15 @@ class _UsuarioDialog(QDialog):
         parent: QWidget,
         title: str,
         usuario: Optional[_UserRecord] = None,
+        allowed_roles: Optional[List[str]] = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
         self.usuario = usuario
         self.password_changed = False
         self.password_value = ""
+
+        self.allowed_roles = allowed_roles or ["admin", "user"]
 
         self.nome_input = QLineEdit(self)
         self.email_input = QLineEdit(self)
@@ -342,7 +411,7 @@ class _UsuarioDialog(QDialog):
         self.senha_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.confirmacao_input.setEchoMode(QLineEdit.EchoMode.Password)
 
-        self.nivel_combo.addItems(["admin", "user"])
+        self.nivel_combo.addItems(self.allowed_roles)
 
         form_layout = QFormLayout()
         form_layout.addRow("Nome:", self.nome_input)
