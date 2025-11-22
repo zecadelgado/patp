@@ -178,13 +178,16 @@ class QuickCreateNotaFiscalDialog(QDialog):
         self.db_manager = db_manager
         self.fornecedor_id = fornecedor_id
         self.nota_fiscal_id = None
-        
+        self._centro_custo_required = False
+
         self.setWindowTitle("Cadastro Rápido de Nota Fiscal")
         self.setMinimumWidth(450)
-        
+
         self._setup_ui()
         self._load_fornecedores()
-        
+        self._descobrir_obrigatoriedade_centro_custo()
+        self._load_centros_custo()
+
         if fornecedor_id:
             self._select_fornecedor(fornecedor_id)
     
@@ -265,13 +268,32 @@ class QuickCreateNotaFiscalDialog(QDialog):
                 "Cadastro de Nota Fiscal",
                 f"Erro ao carregar fornecedores: {exc}"
             )
+
+    def _descobrir_obrigatoriedade_centro_custo(self):
+        """Define se centro de custo é obrigatório conforme esquema."""
+        cursor = None
+        try:
+            cursor = self.db_manager.connection.cursor()
+            cursor.execute("SHOW COLUMNS FROM notas_fiscais LIKE 'id_centro_custo'")
+            row = cursor.fetchone()
+            if row and len(row) >= 3:
+                nullable = row[2]
+                self._centro_custo_required = (nullable == "NO")
+        except Exception:
+            self._centro_custo_required = False
+        finally:
+            if cursor:
+                cursor.close()
+        if self._centro_custo_required and self.cmb_centro_custo.count() > 0:
+            self.cmb_centro_custo.setItemText(0, "(Selecione)")
     
     def _load_centros_custo(self):
         """Carrega lista de centros de custo"""
         try:
             centros = self.db_manager.list_centros_custo()
             self.cmb_centro_custo.clear()
-            self.cmb_centro_custo.addItem("(Nenhum)", None)
+            placeholder = "(Selecione)" if self._centro_custo_required else "(Nenhum)"
+            self.cmb_centro_custo.addItem(placeholder, None)
             
             for centro in centros:
                 nome = centro.get('nome_centro', '')
@@ -337,7 +359,15 @@ class QuickCreateNotaFiscalDialog(QDialog):
         valor_total_str = self.txt_valor_total.text().strip().replace(',', '.')
         valor_total = float(valor_total_str) if valor_total_str else 0.0
         centro_custo_id = self.cmb_centro_custo.currentData()
-        
+        if self._centro_custo_required and centro_custo_id is None:
+            QMessageBox.warning(
+                self,
+                "Cadastro de Nota Fiscal",
+                "Selecione um centro de custo."
+            )
+            self.cmb_centro_custo.setFocus()
+            return
+
         # Salvar no banco
         try:
             cursor = self.db_manager.connection.cursor()

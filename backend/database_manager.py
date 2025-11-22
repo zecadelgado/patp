@@ -706,6 +706,67 @@ class DatabaseManager:
         finally:
             cursor.close()
 
+    def list_centros_custo_por_patrimonio(self, patrimonio_id: int) -> List[Dict[str, Any]]:
+        try:
+            centro_cols = set(self.get_table_columns("centro_custo"))
+        except mysql.connector.Error:
+            centro_cols = set()
+        has_ativo = "ativo" in centro_cols
+
+        select_fields = ["pcc.id_centro_custo", "cc.nome_centro"]
+        if has_ativo:
+            select_fields.append("cc.ativo")
+
+        query = f"""
+            SELECT {', '.join(select_fields)}
+            FROM patrimonios_centro_custo pcc
+            INNER JOIN centro_custo cc ON cc.id_centro_custo = pcc.id_centro_custo
+            WHERE pcc.id_patrimonio = %s
+            ORDER BY cc.nome_centro
+        """
+        try:
+            return self.fetch_all(query, (patrimonio_id,))
+        except mysql.connector.Error as err:
+            missing_tables = {errorcode.ER_NO_SUCH_TABLE, getattr(errorcode, "ER_BAD_TABLE_ERROR", 1103)}
+            if err.errno in missing_tables:
+                return []
+            raise
+
+    def set_patrimonio_centros_custo(self, patrimonio_id: int, centros_ids: Sequence[int]) -> None:
+        normalized_ids: List[int] = []
+        for cid in centros_ids:
+            try:
+                parsed = int(cid)
+            except (TypeError, ValueError):
+                continue
+            if parsed <= 0:
+                continue
+            if parsed not in normalized_ids:
+                normalized_ids.append(parsed)
+
+        self._ensure_connection()
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(
+                "DELETE FROM patrimonios_centro_custo WHERE id_patrimonio = %s",
+                (patrimonio_id,),
+            )
+            if normalized_ids:
+                values = [(patrimonio_id, cid) for cid in normalized_ids]
+                cursor.executemany(
+                    "INSERT INTO patrimonios_centro_custo (id_patrimonio, id_centro_custo) VALUES (%s, %s)",
+                    values,
+                )
+            self.connection.commit()
+        except mysql.connector.Error as err:
+            self.connection.rollback()
+            missing_tables = {errorcode.ER_NO_SUCH_TABLE, getattr(errorcode, "ER_BAD_TABLE_ERROR", 1103)}
+            if err.errno in missing_tables:
+                return
+            raise
+        finally:
+            cursor.close()
+
     def get_patrimonio_codigos(self, ids: Sequence[int]) -> List[Dict[str, Any]]:
         if not ids:
             return []
@@ -757,30 +818,58 @@ class DatabaseManager:
         rows = self.execute_query(sql, tuple(params))
         return bool(rows)
 
-    def _purge_patrimonio_dependencies(self, patrimonio_id: int) -> None:
-        cleanup_targets = [
-            ("patrimonios_centro_custo", "id_patrimonio"),
-            ("movimentacoes", "id_patrimonio"),
-            ("manutencoes", "id_patrimonio"),
-            ("depreciacoes", "id_patrimonio"),
-            ("anexos", "id_patrimonio"),
-            ("itens_nota_fiscal", "id_patrimonio"),
-            ("garantias", "id_patrimonio"),
-            ("baixas", "id_patrimonio"),
-        ]
-        for table, column in cleanup_targets:
-            try:
-                self.execute_query(f"DELETE FROM {table} WHERE {column} = %s", (patrimonio_id,))
-            except mysql.connector.Error as err:
-                if err.errno in {errorcode.ER_NO_SUCH_TABLE, errorcode.ER_BAD_TABLE_ERROR, getattr(errorcode, "ER_WRONG_TABLE_NAME", 1103)}:
-                    continue
-                raise
+    def get_patrimonio_dependencies(self, patrimonio_id: int) -> Dict[str, int]:
+        """Retorna um mapa de vínculos ativos do patrimônio com contagem por entidade."""
+        self._ensure_connection()
+        cursor = self.connection.cursor(dictionary=True)
+        relationships = {
+            "patrimonios_centro_custo": ("id_patrimonio", "centros de custo"),
+            "movimentacoes": ("id_patrimonio", "movimentações"),
+            "manutencoes": ("id_patrimonio", "manutenções"),
+            "depreciacoes": ("id_patrimonio", "depreciações"),
+            "anexos": ("id_patrimonio", "anexos"),
+            "itens_nota_fiscal": ("id_patrimonio", "itens de nota fiscal"),
+            "garantias": ("id_patrimonio", "garantias"),
+            "baixas": ("id_patrimonio", "baixas"),
+        }
+
+        dependencies: Dict[str, int] = {}
+        try:
+            for table, (column, label) in relationships.items():
+                try:
+                    cursor.execute(
+                        f"SELECT COUNT(*) AS total FROM {table} WHERE {column} = %s",
+                        (patrimonio_id,),
+                    )
+                    result = cursor.fetchone() or {}
+                    total = int(result.get("total", 0))
+                    if total > 0:
+                        dependencies[label] = total
+                except mysql.connector.Error as err:
+                    missing = {
+                        errorcode.ER_NO_SUCH_TABLE,
+                        errorcode.ER_BAD_TABLE_ERROR,
+                        getattr(errorcode, "ER_WRONG_TABLE_NAME", 1103),
+                    }
+                    if err.errno in missing:
+                        continue
+                    raise
+        finally:
+            cursor.close()
+
+        return dependencies
 
     def delete_patrimonio(self, patrimonio_id: int) -> bool:
         self._ensure_connection()
         cursor = self.connection.cursor()
         try:
-            self._purge_patrimonio_dependencies(patrimonio_id)
+            dependencies = self.get_patrimonio_dependencies(patrimonio_id)
+            if dependencies:
+                details = ", ".join(f"{label} ({count})" for label, count in dependencies.items())
+                raise ValueError(
+                    "Nao e possivel excluir o patrimonio porque existem registros relacionados: "
+                    + details
+                )
             query = "DELETE FROM patrimonios WHERE id_patrimonio = %s"
             cursor.execute(query, (patrimonio_id,))
             self.connection.commit()
@@ -973,8 +1062,15 @@ class DatabaseManager:
         self.cache.set(cache_key, result, timeout_seconds=300)  # 5 minutos
         return result
 
-    def list_centros_custo(self, search=None):
-        # Se tem busca, não usar cache
+    def list_centros_custo(self, search=None, include_inativos: bool = False):
+        try:
+            columns = set(self.get_table_columns("centro_custo"))
+        except mysql.connector.Error:
+            columns = set()
+        has_ativo = "ativo" in columns
+
+        where_parts: List[str] = []
+        params: List[Any] = []
         if search:
             query = """
                 SELECT id_centro_custo, codigo, nome_centro, responsavel, ativo, observacoes
@@ -1099,6 +1195,12 @@ class DatabaseManager:
         except mysql.connector.Error:
             columns = {"quantidade", "numero_nota"}
 
+        try:
+            centro_cols = set(self.get_table_columns("centro_custo"))
+        except mysql.connector.Error:
+            centro_cols = set()
+        centros_filter = " AND cc.ativo = 1" if "ativo" in centro_cols else ""
+
         quantidade_expr = "COALESCE(p.quantidade, 1)" if "quantidade" in columns else "1"
         numero_nota_expr = "COALESCE(p.numero_nota, '')" if "numero_nota" in columns else "''"
         valor_atual_expr = "p.valor_atual" if "valor_atual" in columns else "NULL"
@@ -1127,7 +1229,7 @@ class DatabaseManager:
             "        SELECT GROUP_CONCAT(DISTINCT cc.nome_centro ORDER BY cc.nome_centro SEPARATOR ', ')",
             "        FROM patrimonios_centro_custo pcc",
             "        INNER JOIN centro_custo cc ON cc.id_centro_custo = pcc.id_centro_custo",
-            "        WHERE pcc.id_patrimonio = p.id_patrimonio",
+            f"        WHERE pcc.id_patrimonio = p.id_patrimonio{centros_filter}",
             "    ) AS centros_custo",
             "FROM patrimonios p",
             "LEFT JOIN categorias cat ON cat.id_categoria = p.id_categoria",
