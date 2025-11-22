@@ -1072,28 +1072,32 @@ class DatabaseManager:
         where_parts: List[str] = []
         params: List[Any] = []
         if search:
-            query = """
-                SELECT id_centro_custo, codigo, nome_centro, responsavel, ativo, observacoes
-                FROM centro_custo
-                WHERE nome_centro LIKE %s OR codigo LIKE %s
-                ORDER BY nome_centro
-            """
-            like = f"%{search}%"
-            return self.fetch_all(query, (like, like))
-        
-        # Tentar obter do cache
-        cache_key = 'centros_custo:list_all'
+            where_parts.append("nome_centro LIKE %s")
+            params.append(f"%{search}%")
+        if has_ativo and not include_inativos:
+            where_parts.append("ativo = 1")
+
+        where_clause = f" WHERE {' AND '.join(where_parts)}" if where_parts else ""
+
+        select_fields = ["id_centro_custo", "nome_centro", "descricao"]
+        if has_ativo:
+            select_fields.append("ativo")
+
+        query = f"""
+            SELECT {', '.join(select_fields)}
+            FROM centro_custo{where_clause}
+            ORDER BY nome_centro
+        """
+
+        if search:
+            return self.fetch_all(query, tuple(params) if params else None)
+
+        cache_key = f"centros_custo:list_all:{'all' if include_inativos else 'ativos'}"
         cached = self.cache.get(cache_key)
         if cached is not None:
             return cached
-        
-        # Buscar do banco e cachear
-        query = """
-            SELECT id_centro_custo, codigo, nome_centro, responsavel, ativo, observacoes
-            FROM centro_custo
-            ORDER BY nome_centro
-        """
-        result = self.fetch_all(query, None)
+
+        result = self.fetch_all(query, tuple(params) if params else None)
         self.cache.set(cache_key, result, timeout_seconds=600)  # 10 minutos
         return result
 
