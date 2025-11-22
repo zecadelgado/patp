@@ -251,7 +251,7 @@
                         <number>10</number>
                       </property>
                       <property name="placeholderText">
-                        <string>Código único do centro de custo</string>
+                        <string>Código único do centro de custo (obrigatório)</string>
                       </property>
                     </widget>
                   </item>
@@ -274,7 +274,7 @@
                   <item row="1" column="1">
                     <widget class="QLineEdit" name="txt_nome">
                       <property name="placeholderText">
-                        <string>Nome do centro de custo</string>
+                        <string>Nome do centro de custo (obrigatório)</string>
                       </property>
                     </widget>
                   </item>

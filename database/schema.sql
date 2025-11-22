@@ -160,21 +160,58 @@ CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`anexos` (
 ENGINE = InnoDB;
 
 
+CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`centro_custo` (
+  `id_centro_custo` INT NOT NULL AUTO_INCREMENT,
+  `nome_centro` VARCHAR(255) NOT NULL,
+  `descricao` TEXT NULL,
+  `ativo` TINYINT(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_centro_custo`),
+  UNIQUE INDEX `nome_centro_UNIQUE` (`nome_centro` ASC) VISIBLE)
+ENGINE = InnoDB;
+
+
+CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`patrimonios_centro_custo` (
+  `id_patrimonio` INT NOT NULL,
+  `id_centro_custo` INT NOT NULL,
+  `data_associacao` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_patrimonio`, `id_centro_custo`),
+  INDEX `fk_patrimonios_has_centro_custo_centro_custo1_idx` (`id_centro_custo` ASC) VISIBLE,
+  INDEX `fk_patrimonios_has_centro_custo_patrimonios1_idx` (`id_patrimonio` ASC) VISIBLE,
+  CONSTRAINT `fk_patrimonios_has_centro_custo_patrimonios1`
+    FOREIGN KEY (`id_patrimonio`)
+    REFERENCES `patrimonio_ideau`.`patrimonios` (`id_patrimonio`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_patrimonios_has_centro_custo_centro_custo1`
+    FOREIGN KEY (`id_centro_custo`)
+    REFERENCES `patrimonio_ideau`.`centro_custo` (`id_centro_custo`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
+
+
 CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`notas_fiscais` (
   `id_nota_fiscal` INT NOT NULL AUTO_INCREMENT,
   `numero_nota` VARCHAR(255) NOT NULL,
   `data_emissao` DATE NOT NULL,
   `valor_total` DECIMAL(10,2) NOT NULL,
   `id_fornecedor` INT NOT NULL,
+  `id_centro_custo` INT NULL,
   `caminho_arquivo_nf` VARCHAR(255) NULL,
   PRIMARY KEY (`id_nota_fiscal`),
   UNIQUE INDEX `numero_nota_UNIQUE` (`numero_nota` ASC) VISIBLE,
   INDEX `fk_notas_fiscais_fornecedores1_idx` (`id_fornecedor` ASC) VISIBLE,
+  INDEX `fk_notas_fiscais_centro_custo1_idx` (`id_centro_custo` ASC) VISIBLE,
   CONSTRAINT `fk_notas_fiscais_fornecedores1`
     FOREIGN KEY (`id_fornecedor`)
     REFERENCES `patrimonio_ideau`.`fornecedores` (`id_fornecedor`)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_notas_fiscais_centro_custo1`
+    FOREIGN KEY (`id_centro_custo`)
+    REFERENCES `patrimonio_ideau`.`centro_custo` (`id_centro_custo`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE)
 ENGINE = InnoDB;
 
 
@@ -248,35 +285,6 @@ CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`baixas` (
   CONSTRAINT `fk_baixas_patrimonios1`
     FOREIGN KEY (`id_patrimonio`)
     REFERENCES `patrimonio_ideau`.`patrimonios` (`id_patrimonio`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
-
-
-CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`centro_custo` (
-  `id_centro_custo` INT NOT NULL AUTO_INCREMENT,
-  `nome_centro` VARCHAR(255) NOT NULL,
-  `descricao` TEXT NULL,
-  PRIMARY KEY (`id_centro_custo`),
-  UNIQUE INDEX `nome_centro_UNIQUE` (`nome_centro` ASC) VISIBLE)
-ENGINE = InnoDB;
-
-
-CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`patrimonios_centro_custo` (
-  `id_patrimonio` INT NOT NULL,
-  `id_centro_custo` INT NOT NULL,
-  `data_associacao` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id_patrimonio`, `id_centro_custo`),
-  INDEX `fk_patrimonios_has_centro_custo_centro_custo1_idx` (`id_centro_custo` ASC) VISIBLE,
-  INDEX `fk_patrimonios_has_centro_custo_patrimonios1_idx` (`id_patrimonio` ASC) VISIBLE,
-  CONSTRAINT `fk_patrimonios_has_centro_custo_patrimonios1`
-    FOREIGN KEY (`id_patrimonio`)
-    REFERENCES `patrimonio_ideau`.`patrimonios` (`id_patrimonio`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_patrimonios_has_centro_custo_centro_custo1`
-    FOREIGN KEY (`id_centro_custo`)
-    REFERENCES `patrimonio_ideau`.`centro_custo` (`id_centro_custo`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
@@ -442,21 +450,58 @@ CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`anexos` (
 ENGINE = InnoDB;
 
 
+CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`centro_custo` (
+  `id_centro_custo` INT NOT NULL AUTO_INCREMENT,
+  `nome_centro` VARCHAR(255) NOT NULL,
+  `descricao` TEXT NULL,
+  `ativo` TINYINT(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id_centro_custo`),
+  UNIQUE INDEX `nome_centro_UNIQUE` (`nome_centro` ASC) VISIBLE)
+ENGINE = InnoDB;
+
+
+CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`patrimonios_centro_custo` (
+  `id_patrimonio` INT NOT NULL,
+  `id_centro_custo` INT NOT NULL,
+  `data_associacao` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_patrimonio`, `id_centro_custo`),
+  INDEX `fk_patrimonios_has_centro_custo_centro_custo1_idx` (`id_centro_custo` ASC) VISIBLE,
+  INDEX `fk_patrimonios_has_centro_custo_patrimonios1_idx` (`id_patrimonio` ASC) VISIBLE,
+  CONSTRAINT `fk_patrimonios_has_centro_custo_patrimonios1`
+    FOREIGN KEY (`id_patrimonio`)
+    REFERENCES `patrimonio_ideau`.`patrimonios` (`id_patrimonio`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_patrimonios_has_centro_custo_centro_custo1`
+    FOREIGN KEY (`id_centro_custo`)
+    REFERENCES `patrimonio_ideau`.`centro_custo` (`id_centro_custo`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
+
+
 CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`notas_fiscais` (
   `id_nota_fiscal` INT NOT NULL AUTO_INCREMENT,
   `numero_nota` VARCHAR(255) NOT NULL,
   `data_emissao` DATE NOT NULL,
   `valor_total` DECIMAL(10,2) NOT NULL,
   `id_fornecedor` INT NOT NULL,
+  `id_centro_custo` INT NULL,
   `caminho_arquivo_nf` VARCHAR(255) NULL,
   PRIMARY KEY (`id_nota_fiscal`),
   UNIQUE INDEX `numero_nota_UNIQUE` (`numero_nota` ASC) VISIBLE,
   INDEX `fk_notas_fiscais_fornecedores1_idx` (`id_fornecedor` ASC) VISIBLE,
+  INDEX `fk_notas_fiscais_centro_custo1_idx` (`id_centro_custo` ASC) VISIBLE,
   CONSTRAINT `fk_notas_fiscais_fornecedores1`
     FOREIGN KEY (`id_fornecedor`)
     REFERENCES `patrimonio_ideau`.`fornecedores` (`id_fornecedor`)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_notas_fiscais_centro_custo1`
+    FOREIGN KEY (`id_centro_custo`)
+    REFERENCES `patrimonio_ideau`.`centro_custo` (`id_centro_custo`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE)
 ENGINE = InnoDB;
 
 
@@ -535,33 +580,6 @@ CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`baixas` (
 ENGINE = InnoDB;
 
 
-CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`centro_custo` (
-  `id_centro_custo` INT NOT NULL AUTO_INCREMENT,
-  `nome_centro` VARCHAR(255) NOT NULL,
-  `descricao` TEXT NULL,
-  PRIMARY KEY (`id_centro_custo`),
-  UNIQUE INDEX `nome_centro_UNIQUE` (`nome_centro` ASC) VISIBLE)
-ENGINE = InnoDB;
-
-
-CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`patrimonios_centro_custo` (
-  `id_patrimonio` INT NOT NULL,
-  `id_centro_custo` INT NOT NULL,
-  `data_associacao` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id_patrimonio`, `id_centro_custo`),
-  INDEX `fk_patrimonios_has_centro_custo_centro_custo1_idx` (`id_centro_custo` ASC) VISIBLE,
-  INDEX `fk_patrimonios_has_centro_custo_patrimonios1_idx` (`id_patrimonio` ASC) VISIBLE,
-  CONSTRAINT `fk_patrimonios_has_centro_custo_patrimonios1`
-    FOREIGN KEY (`id_patrimonio`)
-    REFERENCES `patrimonio_ideau`.`patrimonios` (`id_patrimonio`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_patrimonios_has_centro_custo_centro_custo1`
-    FOREIGN KEY (`id_centro_custo`)
-    REFERENCES `patrimonio_ideau`.`centro_custo` (`id_centro_custo`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`patrimonios` (
   `id_patrimonio` INT NOT NULL AUTO_INCREMENT,

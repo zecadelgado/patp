@@ -149,6 +149,38 @@ class PatrimonioController(QWidget):
             if index >= 0:
                 combo.setCurrentIndex(index)
 
+    def _populate_centros_custo_combo(
+        self,
+        combo: QComboBox,
+        placeholder: str,
+        current_value: Optional[int] = None,
+        include_inativos: bool = False,
+    ) -> None:
+        combo.clear()
+        combo.addItem(placeholder, None)
+        try:
+            centros = self.db_manager.list_centros_custo(include_inativos=include_inativos)
+        except Exception as exc:  # pragma: no cover - feedback user-facing
+            QMessageBox.warning(
+                self.ui,
+                "Patrimonio",
+                f"Nao foi possivel carregar os centros de custo.\n{exc}",
+            )
+            centros = []
+
+        normalized_current = self._normalize_id(current_value)
+        for centro in centros:
+            centro_id = self._normalize_id(centro.get("id_centro_custo"))
+            nome = str(centro.get("nome_centro") or "-")
+            ativo_flag = centro.get("ativo")
+            label = nome if ativo_flag in (None, True, 1, "1", "True") else f"{nome} (Inativo)"
+            combo.addItem(label, centro_id)
+
+        if normalized_current is not None:
+            index = combo.findData(normalized_current)
+            if index >= 0:
+                combo.setCurrentIndex(index)
+
     def _ensure_fixed_category_map(self) -> Dict[str, int]:
         raw_map = self.db_manager.ensure_categorias(self.FIXED_CATEGORIES)
         normalized_map: Dict[str, int] = {}
@@ -222,6 +254,25 @@ class PatrimonioController(QWidget):
                 self._dashboard_updater()
             except Exception as exc:  # pragma: no cover - log but do not disrupt flow
                 print(f"[PatrimonioController] Falha ao atualizar cards do dashboard: {exc}")
+
+    def _persistir_centros_custo(
+        self,
+        patrimonio_ids: Sequence[int],
+        centro_custo_id: Optional[int],
+        parent_dialog: QDialog,
+    ) -> None:
+        if not patrimonio_ids:
+            return
+        centros = [centro_custo_id] if centro_custo_id is not None else []
+        try:
+            for patrimonio_id in patrimonio_ids:
+                self.db_manager.set_patrimonio_centros_custo(patrimonio_id, centros)
+        except Exception as exc:  # pragma: no cover - feedback user-facing
+            QMessageBox.warning(
+                parent_dialog,
+                "Centro de Custo",
+                f"Nao foi possivel atualizar o vinculo de centro de custo.\n{exc}",
+            )
 
     @staticmethod
     def _normalize_id(value: object) -> Optional[int]:
@@ -453,6 +504,7 @@ class PatrimonioController(QWidget):
         self.categoria_combo = QComboBox()
         self.fornecedor_combo = QComboBox()
         self.setor_local_combo = QComboBox()
+        self.centro_custo_combo = QComboBox()
         self.status_combo = QComboBox()
         self.status_combo.addItems(self.STATUS_OPTIONS)
         status_default_index = self.status_combo.findText("ativo")
@@ -488,6 +540,10 @@ class PatrimonioController(QWidget):
             "id_setor_local",
             "nome_setor_local",
         )
+        self._populate_centros_custo_combo(
+            self.centro_custo_combo,
+            "Selecione um Centro de Custo",
+        )
         
         # Botão para cadastro rápido de nota fiscal
         btn_nova_nota = QPushButton("+ Nova Nota")
@@ -510,6 +566,7 @@ class PatrimonioController(QWidget):
         form_layout.addRow("Categoria:", self.categoria_combo)
         form_layout.addRow("Fornecedor:", fornecedor_layout)
         form_layout.addRow("Setor/Local:", self.setor_local_combo)
+        form_layout.addRow("Centro de Custo:", self.centro_custo_combo)
         form_layout.addRow("Status:", self.status_combo)
 
         btn_salvar = QPushButton("Salvar")
@@ -535,6 +592,9 @@ class PatrimonioController(QWidget):
         )
         id_setor_local = self._normalize_id(
             self.setor_local_combo.currentData() if self.setor_local_combo else None
+        )
+        id_centro_custo = self._normalize_id(
+            self.centro_custo_combo.currentData() if self.centro_custo_combo else None
         )
         status = self.status_combo.currentText()
 
@@ -595,6 +655,7 @@ class PatrimonioController(QWidget):
                     enforce_unique_serial=enforce_unique_serial,
                 )
                 if ids:
+                    self._persistir_centros_custo(ids, id_centro_custo, dialog)
                     numeros = self.db_manager.get_patrimonio_codigos(ids)
                     numeros_lista = [
                         self._format_codigo(row.get("numero_patrimonio"))
@@ -620,6 +681,7 @@ class PatrimonioController(QWidget):
             else:
                 novo_id = self.db_manager.create_patrimonio(dados)
                 if novo_id:
+                    self._persistir_centros_custo([novo_id], id_centro_custo, dialog)
                     codigo = self.db_manager.get_patrimonio_codigos([novo_id])
                     numero_texto = ""
                     if codigo and codigo[0].get("numero_patrimonio") not in (None, ""):
@@ -753,6 +815,7 @@ class PatrimonioController(QWidget):
         self.categoria_combo = QComboBox()
         self.fornecedor_combo = QComboBox()
         self.setor_local_combo = QComboBox()
+        self.centro_custo_combo = QComboBox()
         self.status_combo = QComboBox()
         self.status_combo.addItems(self.STATUS_OPTIONS)
 
@@ -761,6 +824,23 @@ class PatrimonioController(QWidget):
             index_status = self.status_combo.findText(str(status_atual))
             if index_status >= 0:
                 self.status_combo.setCurrentIndex(index_status)
+
+        centro_atual_id: Optional[int] = None
+        try:
+            centros_do_patrimonio = self.db_manager.list_centros_custo_por_patrimonio(id_patrimonio)
+        except Exception as exc:  # pragma: no cover - feedback user-facing
+            QMessageBox.warning(
+                self.ui,
+                "Centro de Custo",
+                f"Nao foi possivel carregar os centros de custo vinculados.\n{exc}",
+            )
+            centros_do_patrimonio = []
+        if centros_do_patrimonio:
+            preferencia_ativa = next(
+                (c for c in centros_do_patrimonio if c.get("ativo") not in (False, 0, "0", "False")),
+                centros_do_patrimonio[0],
+            )
+            centro_atual_id = self._normalize_id(preferencia_ativa.get("id_centro_custo"))
 
         self._populate_categoria_combo(
             self.categoria_combo,
@@ -782,6 +862,12 @@ class PatrimonioController(QWidget):
             "id_setor_local",
             "nome_setor_local",
             patrimonio.get("id_setor_local"),
+        )
+        self._populate_centros_custo_combo(
+            self.centro_custo_combo,
+            "Selecione um Centro de Custo",
+            centro_atual_id,
+            include_inativos=True,
         )
 
         self.quantidade_input = QSpinBox()
@@ -819,6 +905,7 @@ class PatrimonioController(QWidget):
         form_layout.addRow("Categoria:", self.categoria_combo)
         form_layout.addRow("Fornecedor:", fornecedor_layout)
         form_layout.addRow("Setor/Local:", self.setor_local_combo)
+        form_layout.addRow("Centro de Custo:", self.centro_custo_combo)
         form_layout.addRow("Status:", self.status_combo)
 
         btn_salvar = QPushButton("Salvar alteracoes")
@@ -844,6 +931,9 @@ class PatrimonioController(QWidget):
         )
         id_setor_local = self._normalize_id(
             self.setor_local_combo.currentData() if self.setor_local_combo else None
+        )
+        id_centro_custo = self._normalize_id(
+            self.centro_custo_combo.currentData() if self.centro_custo_combo else None
         )
         status = self.status_combo.currentText()
 
@@ -885,6 +975,7 @@ class PatrimonioController(QWidget):
             return
 
         if atualizado:
+            self._persistir_centros_custo([id_patrimonio], id_centro_custo, dialog)
             QMessageBox.information(dialog, "Edicao", "Patrimonio atualizado com sucesso.")
             dialog.accept()
             self.load_patrimonios()
