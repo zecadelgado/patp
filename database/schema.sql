@@ -166,15 +166,22 @@ CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`notas_fiscais` (
   `data_emissao` DATE NOT NULL,
   `valor_total` DECIMAL(10,2) NOT NULL,
   `id_fornecedor` INT NOT NULL,
+  `id_centro_custo` INT NULL,
   `caminho_arquivo_nf` VARCHAR(255) NULL,
   PRIMARY KEY (`id_nota_fiscal`),
   UNIQUE INDEX `numero_nota_UNIQUE` (`numero_nota` ASC) VISIBLE,
   INDEX `fk_notas_fiscais_fornecedores1_idx` (`id_fornecedor` ASC) VISIBLE,
+  INDEX `fk_notas_fiscais_centro_custo1_idx` (`id_centro_custo` ASC) VISIBLE,
   CONSTRAINT `fk_notas_fiscais_fornecedores1`
     FOREIGN KEY (`id_fornecedor`)
     REFERENCES `patrimonio_ideau`.`fornecedores` (`id_fornecedor`)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_notas_fiscais_centro_custo1`
+    FOREIGN KEY (`id_centro_custo`)
+    REFERENCES `patrimonio_ideau`.`centro_custo` (`id_centro_custo`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE)
 ENGINE = InnoDB;
 
 
@@ -257,6 +264,7 @@ CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`centro_custo` (
   `id_centro_custo` INT NOT NULL AUTO_INCREMENT,
   `nome_centro` VARCHAR(255) NOT NULL,
   `descricao` TEXT NULL,
+  `ativo` TINYINT(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`id_centro_custo`),
   UNIQUE INDEX `nome_centro_UNIQUE` (`nome_centro` ASC) VISIBLE)
 ENGINE = InnoDB;
@@ -448,15 +456,22 @@ CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`notas_fiscais` (
   `data_emissao` DATE NOT NULL,
   `valor_total` DECIMAL(10,2) NOT NULL,
   `id_fornecedor` INT NOT NULL,
+  `id_centro_custo` INT NULL,
   `caminho_arquivo_nf` VARCHAR(255) NULL,
   PRIMARY KEY (`id_nota_fiscal`),
   UNIQUE INDEX `numero_nota_UNIQUE` (`numero_nota` ASC) VISIBLE,
   INDEX `fk_notas_fiscais_fornecedores1_idx` (`id_fornecedor` ASC) VISIBLE,
+  INDEX `fk_notas_fiscais_centro_custo1_idx` (`id_centro_custo` ASC) VISIBLE,
   CONSTRAINT `fk_notas_fiscais_fornecedores1`
     FOREIGN KEY (`id_fornecedor`)
     REFERENCES `patrimonio_ideau`.`fornecedores` (`id_fornecedor`)
     ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_notas_fiscais_centro_custo1`
+    FOREIGN KEY (`id_centro_custo`)
+    REFERENCES `patrimonio_ideau`.`centro_custo` (`id_centro_custo`)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE)
 ENGINE = InnoDB;
 
 
@@ -539,6 +554,7 @@ CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`centro_custo` (
   `id_centro_custo` INT NOT NULL AUTO_INCREMENT,
   `nome_centro` VARCHAR(255) NOT NULL,
   `descricao` TEXT NULL,
+  `ativo` TINYINT(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`id_centro_custo`),
   UNIQUE INDEX `nome_centro_UNIQUE` (`nome_centro` ASC) VISIBLE)
 ENGINE = InnoDB;
