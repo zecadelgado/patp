@@ -977,12 +977,13 @@ class DatabaseManager:
         # Se tem busca, não usar cache
         if search:
             query = """
-                SELECT id_centro_custo, nome_centro, descricao
+                SELECT id_centro_custo, codigo, nome_centro, responsavel, ativo, observacoes
                 FROM centro_custo
-                WHERE nome_centro LIKE %s
+                WHERE nome_centro LIKE %s OR codigo LIKE %s
                 ORDER BY nome_centro
             """
-            return self.fetch_all(query, (f"%{search}%",))
+            like = f"%{search}%"
+            return self.fetch_all(query, (like, like))
         
         # Tentar obter do cache
         cache_key = 'centros_custo:list_all'
@@ -992,7 +993,7 @@ class DatabaseManager:
         
         # Buscar do banco e cachear
         query = """
-            SELECT id_centro_custo, nome_centro, descricao
+            SELECT id_centro_custo, codigo, nome_centro, responsavel, ativo, observacoes
             FROM centro_custo
             ORDER BY nome_centro
         """
