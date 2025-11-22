@@ -706,6 +706,67 @@ class DatabaseManager:
         finally:
             cursor.close()
 
+    def list_centros_custo_por_patrimonio(self, patrimonio_id: int) -> List[Dict[str, Any]]:
+        try:
+            centro_cols = set(self.get_table_columns("centro_custo"))
+        except mysql.connector.Error:
+            centro_cols = set()
+        has_ativo = "ativo" in centro_cols
+
+        select_fields = ["pcc.id_centro_custo", "cc.nome_centro"]
+        if has_ativo:
+            select_fields.append("cc.ativo")
+
+        query = f"""
+            SELECT {', '.join(select_fields)}
+            FROM patrimonios_centro_custo pcc
+            INNER JOIN centro_custo cc ON cc.id_centro_custo = pcc.id_centro_custo
+            WHERE pcc.id_patrimonio = %s
+            ORDER BY cc.nome_centro
+        """
+        try:
+            return self.fetch_all(query, (patrimonio_id,))
+        except mysql.connector.Error as err:
+            missing_tables = {errorcode.ER_NO_SUCH_TABLE, getattr(errorcode, "ER_BAD_TABLE_ERROR", 1103)}
+            if err.errno in missing_tables:
+                return []
+            raise
+
+    def set_patrimonio_centros_custo(self, patrimonio_id: int, centros_ids: Sequence[int]) -> None:
+        normalized_ids: List[int] = []
+        for cid in centros_ids:
+            try:
+                parsed = int(cid)
+            except (TypeError, ValueError):
+                continue
+            if parsed <= 0:
+                continue
+            if parsed not in normalized_ids:
+                normalized_ids.append(parsed)
+
+        self._ensure_connection()
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(
+                "DELETE FROM patrimonios_centro_custo WHERE id_patrimonio = %s",
+                (patrimonio_id,),
+            )
+            if normalized_ids:
+                values = [(patrimonio_id, cid) for cid in normalized_ids]
+                cursor.executemany(
+                    "INSERT INTO patrimonios_centro_custo (id_patrimonio, id_centro_custo) VALUES (%s, %s)",
+                    values,
+                )
+            self.connection.commit()
+        except mysql.connector.Error as err:
+            self.connection.rollback()
+            missing_tables = {errorcode.ER_NO_SUCH_TABLE, getattr(errorcode, "ER_BAD_TABLE_ERROR", 1103)}
+            if err.errno in missing_tables:
+                return
+            raise
+        finally:
+            cursor.close()
+
     def get_patrimonio_codigos(self, ids: Sequence[int]) -> List[Dict[str, Any]]:
         if not ids:
             return []
@@ -973,31 +1034,42 @@ class DatabaseManager:
         self.cache.set(cache_key, result, timeout_seconds=300)  # 5 minutos
         return result
 
-    def list_centros_custo(self, search=None):
-        # Se tem busca, não usar cache
+    def list_centros_custo(self, search=None, include_inativos: bool = False):
+        try:
+            columns = set(self.get_table_columns("centro_custo"))
+        except mysql.connector.Error:
+            columns = set()
+        has_ativo = "ativo" in columns
+
+        where_parts: List[str] = []
+        params: List[Any] = []
         if search:
-            query = """
-                SELECT id_centro_custo, codigo, nome_centro, responsavel, ativo, observacoes
-                FROM centro_custo
-                WHERE nome_centro LIKE %s OR codigo LIKE %s
-                ORDER BY nome_centro
-            """
-            like = f"%{search}%"
-            return self.fetch_all(query, (like, like))
-        
-        # Tentar obter do cache
-        cache_key = 'centros_custo:list_all'
+            where_parts.append("nome_centro LIKE %s")
+            params.append(f"%{search}%")
+        if has_ativo and not include_inativos:
+            where_parts.append("ativo = 1")
+
+        where_clause = f" WHERE {' AND '.join(where_parts)}" if where_parts else ""
+
+        select_fields = ["id_centro_custo", "nome_centro", "descricao"]
+        if has_ativo:
+            select_fields.append("ativo")
+
+        query = f"""
+            SELECT {', '.join(select_fields)}
+            FROM centro_custo{where_clause}
+            ORDER BY nome_centro
+        """
+
+        if search:
+            return self.fetch_all(query, tuple(params) if params else None)
+
+        cache_key = f"centros_custo:list_all:{'all' if include_inativos else 'ativos'}"
         cached = self.cache.get(cache_key)
         if cached is not None:
             return cached
-        
-        # Buscar do banco e cachear
-        query = """
-            SELECT id_centro_custo, codigo, nome_centro, responsavel, ativo, observacoes
-            FROM centro_custo
-            ORDER BY nome_centro
-        """
-        result = self.fetch_all(query, None)
+
+        result = self.fetch_all(query, tuple(params) if params else None)
         self.cache.set(cache_key, result, timeout_seconds=600)  # 10 minutos
         return result
 
@@ -1099,6 +1171,12 @@ class DatabaseManager:
         except mysql.connector.Error:
             columns = {"quantidade", "numero_nota"}
 
+        try:
+            centro_cols = set(self.get_table_columns("centro_custo"))
+        except mysql.connector.Error:
+            centro_cols = set()
+        centros_filter = " AND cc.ativo = 1" if "ativo" in centro_cols else ""
+
         quantidade_expr = "COALESCE(p.quantidade, 1)" if "quantidade" in columns else "1"
         numero_nota_expr = "COALESCE(p.numero_nota, '')" if "numero_nota" in columns else "''"
         valor_atual_expr = "p.valor_atual" if "valor_atual" in columns else "NULL"
@@ -1127,7 +1205,7 @@ class DatabaseManager:
             "        SELECT GROUP_CONCAT(DISTINCT cc.nome_centro ORDER BY cc.nome_centro SEPARATOR ', ')",
             "        FROM patrimonios_centro_custo pcc",
             "        INNER JOIN centro_custo cc ON cc.id_centro_custo = pcc.id_centro_custo",
-            "        WHERE pcc.id_patrimonio = p.id_patrimonio",
+            f"        WHERE pcc.id_patrimonio = p.id_patrimonio{centros_filter}",
             "    ) AS centros_custo",
             "FROM patrimonios p",
             "LEFT JOIN categorias cat ON cat.id_categoria = p.id_categoria",
