@@ -229,6 +229,18 @@ class DatabaseManager:
                 }
         return self._manutencao_columns
 
+    def manutencao_has_extended_columns(self) -> bool:
+        """Retorna se o schema de manutenção possui todas as colunas esperadas.
+
+        A verificação reutiliza o cache de :meth:`_get_manutencao_columns` para
+        evitar consultas redundantes e serve para habilitar/desabilitar recursos
+        que dependem das colunas novas.
+        """
+
+        columns = self._get_manutencao_columns()
+        required = {"tipo_manutencao", "empresa"}
+        return required.issubset(columns)
+
     def create_user(self, nome, email, password, nivel_acesso: str = "user", ativo: Optional[bool] = None):
         if self.get_user_by_email(email):
             return None

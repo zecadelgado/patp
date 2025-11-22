@@ -63,6 +63,8 @@ class ManutencaoController:
         self._manutencoes: List[_ManutencaoRecord] = []
         self._current_id: Optional[int] = None
         self._edit_mode = False
+        self._schema_ready = True
+        self._schema_warning_shown = False
 
         self._setup_table()
         self._connect_signals()
@@ -103,6 +105,26 @@ class ManutencaoController:
                                                                           
                 
     def refresh(self) -> None:
+        self._schema_ready = self.db_manager.manutencao_has_extended_columns()
+        self._set_dependent_fields_enabled(self._schema_ready)
+
+        if not self._schema_ready:
+            if not self._schema_warning_shown:
+                QMessageBox.warning(
+                    self.widget,
+                    "Manutenções",
+                    (
+                        "A tabela 'manutencoes' está incompleta. Execute o script "
+                        "database/migrations_manutencao.sql para habilitar todos os recursos."
+                    ),
+                )
+                self._schema_warning_shown = True
+            self._set_edit_mode(False)
+            self._clear_form()
+            if self.table:
+                self.table.setRowCount(0)
+            return
+
         self._populate_patrimonios()
         self._populate_tipos()
         self._load_manutencoes()
@@ -326,7 +348,8 @@ class ManutencaoController:
                                                                           
                   
     def _set_edit_mode(self, enabled: bool) -> None:
-        self._edit_mode = enabled
+        effective_enabled = enabled and self._schema_ready
+        self._edit_mode = effective_enabled
         widgets = [
             self.cb_patrimonio,
             self.cb_tipo,
@@ -337,6 +360,15 @@ class ManutencaoController:
             self.pte_descricao,
         ]
         for widget in widgets:
+            if widget:
+                widget.setEnabled(effective_enabled)
+        buttons = [self.btn_novo, self.btn_editar, self.btn_excluir, self.btn_salvar, self.btn_cancelar]
+        for button in buttons:
+            if button:
+                button.setEnabled(self._schema_ready if button in {self.btn_novo, self.btn_editar, self.btn_salvar, self.btn_cancelar} else True)
+
+    def _set_dependent_fields_enabled(self, enabled: bool) -> None:
+        for widget in (self.cb_tipo, self.le_empresa):
             if widget:
                 widget.setEnabled(enabled)
 
