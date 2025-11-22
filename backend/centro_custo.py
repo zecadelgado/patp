@@ -158,15 +158,17 @@ class CentroCustoController:
         for key, widget in self._line_edits.items():
             if widget is None:
                 continue
-            if not self._columns.get(key):
-                widget.setEnabled(False)
-                widget.setToolTip(unavailable_hint)
-        if self._chk_ativo and not self._columns.get("ativo"):
-            self._chk_ativo.setEnabled(False)
-            self._chk_ativo.setToolTip(unavailable_hint)
-        if self._txt_observacoes and not self._columns.get("observacoes"):
-            self._txt_observacoes.setEnabled(False)
-            self._txt_observacoes.setToolTip(unavailable_hint)
+            column_exists = bool(self._columns.get(key))
+            widget.setEnabled(column_exists)
+            widget.setToolTip("" if column_exists else unavailable_hint)
+        if self._chk_ativo:
+            column_exists = bool(self._columns.get("ativo"))
+            self._chk_ativo.setEnabled(column_exists)
+            self._chk_ativo.setToolTip("" if column_exists else unavailable_hint)
+        if self._txt_observacoes:
+            column_exists = bool(self._columns.get("observacoes"))
+            self._txt_observacoes.setEnabled(column_exists)
+            self._txt_observacoes.setToolTip("" if column_exists else unavailable_hint)
 
     def _connect_signals(self):
         if self.btn_novo:
@@ -415,7 +417,9 @@ class CentroCustoController:
         codigo_widget = self._line_edits.get("codigo")
         if codigo_col and codigo_widget:
             valor = codigo_widget.text().strip()
-            data[codigo_col] = valor if valor else None
+            if not valor:
+                return None, "Informe o código do centro de custo."
+            data[codigo_col] = valor
 
         responsavel_col = self._columns.get("responsavel")
         responsavel_widget = self._line_edits.get("responsavel")
@@ -424,8 +428,9 @@ class CentroCustoController:
             data[responsavel_col] = valor if valor else None
 
         ativo_col = self._columns.get("ativo")
-        if ativo_col and self._chk_ativo:
-            data[ativo_col] = self._format_checkbox_value(self._chk_ativo.isChecked())
+        if ativo_col:
+            checked = self._chk_ativo.isChecked() if self._chk_ativo else True
+            data[ativo_col] = self._format_checkbox_value(checked)
 
         observacoes_col = self._columns.get("observacoes")
         if observacoes_col and self._txt_observacoes:
