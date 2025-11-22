@@ -818,30 +818,58 @@ class DatabaseManager:
         rows = self.execute_query(sql, tuple(params))
         return bool(rows)
 
-    def _purge_patrimonio_dependencies(self, patrimonio_id: int) -> None:
-        cleanup_targets = [
-            ("patrimonios_centro_custo", "id_patrimonio"),
-            ("movimentacoes", "id_patrimonio"),
-            ("manutencoes", "id_patrimonio"),
-            ("depreciacoes", "id_patrimonio"),
-            ("anexos", "id_patrimonio"),
-            ("itens_nota_fiscal", "id_patrimonio"),
-            ("garantias", "id_patrimonio"),
-            ("baixas", "id_patrimonio"),
-        ]
-        for table, column in cleanup_targets:
-            try:
-                self.execute_query(f"DELETE FROM {table} WHERE {column} = %s", (patrimonio_id,))
-            except mysql.connector.Error as err:
-                if err.errno in {errorcode.ER_NO_SUCH_TABLE, errorcode.ER_BAD_TABLE_ERROR, getattr(errorcode, "ER_WRONG_TABLE_NAME", 1103)}:
-                    continue
-                raise
+    def get_patrimonio_dependencies(self, patrimonio_id: int) -> Dict[str, int]:
+        """Retorna um mapa de vínculos ativos do patrimônio com contagem por entidade."""
+        self._ensure_connection()
+        cursor = self.connection.cursor(dictionary=True)
+        relationships = {
+            "patrimonios_centro_custo": ("id_patrimonio", "centros de custo"),
+            "movimentacoes": ("id_patrimonio", "movimentações"),
+            "manutencoes": ("id_patrimonio", "manutenções"),
+            "depreciacoes": ("id_patrimonio", "depreciações"),
+            "anexos": ("id_patrimonio", "anexos"),
+            "itens_nota_fiscal": ("id_patrimonio", "itens de nota fiscal"),
+            "garantias": ("id_patrimonio", "garantias"),
+            "baixas": ("id_patrimonio", "baixas"),
+        }
+
+        dependencies: Dict[str, int] = {}
+        try:
+            for table, (column, label) in relationships.items():
+                try:
+                    cursor.execute(
+                        f"SELECT COUNT(*) AS total FROM {table} WHERE {column} = %s",
+                        (patrimonio_id,),
+                    )
+                    result = cursor.fetchone() or {}
+                    total = int(result.get("total", 0))
+                    if total > 0:
+                        dependencies[label] = total
+                except mysql.connector.Error as err:
+                    missing = {
+                        errorcode.ER_NO_SUCH_TABLE,
+                        errorcode.ER_BAD_TABLE_ERROR,
+                        getattr(errorcode, "ER_WRONG_TABLE_NAME", 1103),
+                    }
+                    if err.errno in missing:
+                        continue
+                    raise
+        finally:
+            cursor.close()
+
+        return dependencies
 
     def delete_patrimonio(self, patrimonio_id: int) -> bool:
         self._ensure_connection()
         cursor = self.connection.cursor()
         try:
-            self._purge_patrimonio_dependencies(patrimonio_id)
+            dependencies = self.get_patrimonio_dependencies(patrimonio_id)
+            if dependencies:
+                details = ", ".join(f"{label} ({count})" for label, count in dependencies.items())
+                raise ValueError(
+                    "Nao e possivel excluir o patrimonio porque existem registros relacionados: "
+                    + details
+                )
             query = "DELETE FROM patrimonios WHERE id_patrimonio = %s"
             cursor.execute(query, (patrimonio_id,))
             self.connection.commit()
