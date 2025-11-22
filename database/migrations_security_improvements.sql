@@ -42,16 +42,29 @@ COMMENT 'Tipo da manutenção (Preventiva, Corretiva, etc.)';
 -- ========================================================================
 
 -- Adicionar coluna 'id_centro_custo' se não existir
-ALTER TABLE notas_fiscais 
-ADD COLUMN IF NOT EXISTS id_centro_custo INT NULL 
+ALTER TABLE notas_fiscais
+ADD COLUMN IF NOT EXISTS id_centro_custo INT NULL
 COMMENT 'Referência ao centro de custo';
 
--- Adicionar chave estrangeira para centro_custo (se a tabela existir)
--- Remova o comentário abaixo se a tabela centro_custo já existir no seu banco
--- ALTER TABLE notas_fiscais 
--- ADD CONSTRAINT fk_notas_fiscais_centro_custo 
--- FOREIGN KEY (id_centro_custo) REFERENCES centro_custo(id_centro_custo) 
--- ON DELETE SET NULL ON UPDATE CASCADE;
+-- Adicionar índice e chave estrangeira para centro_custo
+CREATE INDEX IF NOT EXISTS idx_notas_centro_custo ON notas_fiscais(id_centro_custo);
+ALTER TABLE notas_fiscais
+DROP FOREIGN KEY IF EXISTS fk_notas_fiscais_centro_custo,
+ADD CONSTRAINT fk_notas_fiscais_centro_custo
+FOREIGN KEY (id_centro_custo) REFERENCES centro_custo(id_centro_custo)
+ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- ========================================================================
+-- 3.1 TABELA CENTRO_CUSTO - Campo 'ativo'
+-- ========================================================================
+
+-- Adicionar coluna 'ativo' para habilitar filtros de itens ativos
+ALTER TABLE centro_custo
+ADD COLUMN IF NOT EXISTS ativo TINYINT(1) NOT NULL DEFAULT 1
+COMMENT 'Indica se o centro de custo está ativo (1) ou inativo (0)';
+
+-- Opcional: garantir índice para pesquisas por ativos
+CREATE INDEX IF NOT EXISTS idx_centro_custo_ativo ON centro_custo(ativo);
 
 -- ========================================================================
 -- 4. TABELA FORNECEDORES - Índice único em CNPJ

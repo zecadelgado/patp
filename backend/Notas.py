@@ -182,6 +182,7 @@ class NotasFiscaisController:
             id_candidates = ["id_centro_custo", "id", "centro_custo_id", "idCentroCusto"]
             name_candidates = ["nome_centro", "nome", "descricao", "titulo"]
             code_candidates = ["codigo", "cod_centro", "cod", "sigla"]
+            has_ativo = "ativo" in cols
             id_col = next((c for c in id_candidates if c in cols), None)
             name_col = next((c for c in name_candidates if c in cols), None)
             code_col = next((c for c in code_candidates if c in cols), None)
@@ -190,7 +191,8 @@ class NotasFiscaisController:
             select_cols = [f"`{id_col}`", f"`{name_col}`"]
             if code_col:
                 select_cols.append(f"`{code_col}`")
-            sql = f"SELECT {', '.join(select_cols)} FROM centro_custo ORDER BY `{name_col}`"
+            where_clause = " WHERE `ativo` = 1" if has_ativo else ""
+            sql = f"SELECT {', '.join(select_cols)} FROM centro_custo{where_clause} ORDER BY `{name_col}`"
             cursor.execute(sql)
             rows = cursor.fetchall()
         except mysql.connector.Error as err:
