@@ -255,9 +255,13 @@ ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`centro_custo` (
   `id_centro_custo` INT NOT NULL AUTO_INCREMENT,
+  `codigo` VARCHAR(50) NOT NULL,
   `nome_centro` VARCHAR(255) NOT NULL,
-  `descricao` TEXT NULL,
+  `responsavel` VARCHAR(255) NULL,
+  `ativo` TINYINT NOT NULL DEFAULT 1,
+  `observacoes` TEXT NULL,
   PRIMARY KEY (`id_centro_custo`),
+  UNIQUE INDEX `codigo_UNIQUE` (`codigo` ASC) VISIBLE,
   UNIQUE INDEX `nome_centro_UNIQUE` (`nome_centro` ASC) VISIBLE)
 ENGINE = InnoDB;
 
@@ -537,9 +541,13 @@ ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `patrimonio_ideau`.`centro_custo` (
   `id_centro_custo` INT NOT NULL AUTO_INCREMENT,
+  `codigo` VARCHAR(50) NOT NULL,
   `nome_centro` VARCHAR(255) NOT NULL,
-  `descricao` TEXT NULL,
+  `responsavel` VARCHAR(255) NULL,
+  `ativo` TINYINT NOT NULL DEFAULT 1,
+  `observacoes` TEXT NULL,
   PRIMARY KEY (`id_centro_custo`),
+  UNIQUE INDEX `codigo_UNIQUE` (`codigo` ASC) VISIBLE,
   UNIQUE INDEX `nome_centro_UNIQUE` (`nome_centro` ASC) VISIBLE)
 ENGINE = InnoDB;
 
