@@ -58,6 +58,7 @@ class PatrimonioController(QWidget):
         self.current_user = current_user
         self._dashboard_updater: Optional[Callable[[], None]] = None
         self._fixed_category_map: Dict[str, int] = {}
+        self._selection_connected: bool = False
 
         self.table: Optional[QTableWidget] = self.ui.findChild(QTableWidget, "tbl_patrimonio")
         self.search_input: Optional[QLineEdit] = self.ui.findChild(QLineEdit, "le_busca")
@@ -75,6 +76,8 @@ class PatrimonioController(QWidget):
         self._refresh_optional_columns()
 
         self._setup_ui_connections()
+        self._connect_table_selection()
+        self._update_buttons_state()
         self.populate_comboboxes()
         self.load_patrimonios()
 
@@ -93,7 +96,15 @@ class PatrimonioController(QWidget):
             if button is None:
                 print(f"[PatrimonioController] Botao '{object_name}' nao encontrado na UI.")
                 continue
-            button.clicked.connect(handler)                          
+            button.clicked.connect(handler)
+
+    def _connect_table_selection(self) -> None:
+        if not self.table or not self.table.selectionModel():
+            return
+        if self._selection_connected:
+            return
+        self.table.selectionModel().selectionChanged.connect(self._update_buttons_state)
+        self._selection_connected = True
 
     def _check_valor_atual_column(self) -> bool:
         try:
@@ -168,6 +179,39 @@ class PatrimonioController(QWidget):
             index = combo.findData(normalized_current)
             if index >= 0:
                 combo.setCurrentIndex(index)
+
+    def _has_management_privileges(self) -> bool:
+        return DatabaseManager.has_admin_privileges(self.current_user)
+
+    def _ensure_management_privileges(self) -> bool:
+        if self._has_management_privileges():
+            return True
+        QMessageBox.warning(
+            self.ui,
+            "Patrimônio",
+            "Ação permitida apenas para administradores ou usuários master.",
+        )
+        return False
+
+    def _update_buttons_state(self) -> None:
+        can_manage = self._has_management_privileges()
+        has_selection = bool(
+            self.table
+            and self.table.selectionModel()
+            and self.table.selectionModel().hasSelection()
+        )
+
+        button_rules = {
+            "btn_novo": can_manage,
+            "btn_importar": can_manage,
+            "btn_editar": can_manage and has_selection,
+            "btn_excluir": can_manage and has_selection,
+        }
+
+        for object_name, enabled in button_rules.items():
+            button = self.ui.findChild(QPushButton, object_name)
+            if button:
+                button.setEnabled(enabled)
 
     def set_dashboard_updater(self, callback: Optional[Callable[[], None]]) -> None:
         self._dashboard_updater = callback
@@ -352,11 +396,16 @@ class PatrimonioController(QWidget):
                 self.table.setItem(row_index, column, QTableWidgetItem(text))
 
         self.table.resizeColumnsToContents()
+        self._connect_table_selection()
+        self._update_buttons_state()
 
                                                                              
                          
                                                                              
     def abrir_cadastro_patrimonio(self) -> None:
+        if not self._ensure_management_privileges():
+            return
+
         dialog = QDialog(self.ui)
         dialog.setWindowTitle("Cadastrar novo patrimonio")
 
@@ -594,6 +643,9 @@ class PatrimonioController(QWidget):
                        
                                                                              
     def editar_patrimonio(self) -> None:
+        if not self._ensure_management_privileges():
+            return
+
         if not self.table:
             return
 
@@ -864,15 +916,10 @@ class PatrimonioController(QWidget):
         return bool(self.db_manager.execute_query(query, params))
 
     def excluir_patrimonio(self) -> None:
-        # Verificar permissão de admin/master
-        if not DatabaseManager.has_admin_privileges(self.current_user):
-            QMessageBox.warning(
-                self.ui,
-                "Patrimônio",
-                "Ação permitida apenas para administradores ou usuários master.",
-            )
+        if not self._ensure_management_privileges():
+            self._update_buttons_state()
             return
-        
+
         if not self.table:
             return
 
@@ -899,6 +946,27 @@ class PatrimonioController(QWidget):
         nome_patrimonio = nome_item.text()
         local_atual = local_item.text() if local_item else None
 
+        try:
+            dependencies = self.db_manager.get_patrimonio_dependencies(id_patrimonio)
+        except Exception as exc:
+            QMessageBox.critical(
+                self.ui,
+                "Baixa",
+                f"Falha ao verificar vínculos do patrimônio.\n{exc}",
+            )
+            return
+
+        if dependencies:
+            details = "\n".join(
+                f"• {label}: {count} registro(s) relacionado(s)" for label, count in dependencies.items()
+            )
+            QMessageBox.warning(
+                self.ui,
+                "Baixa",
+                "Nao e possivel excluir o patrimonio porque existem vinculos ativos:\n" + details,
+            )
+            return
+
         resposta = QMessageBox.question(
             self.ui,
             "Confirmacao",
@@ -908,6 +976,7 @@ class PatrimonioController(QWidget):
         )
 
         if resposta != QMessageBox.Yes:
+            self._update_buttons_state()
             return
 
         try:
@@ -926,6 +995,7 @@ class PatrimonioController(QWidget):
 
         self.load_patrimonios()
         self._trigger_dashboard_update()
+        self._update_buttons_state()
 
                                                                              
                  
