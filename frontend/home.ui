@@ -312,11 +312,14 @@
           </item>
           <item>
            <widget class="QPushButton" name="btn_usuarios">
-            <property name="minimumSize">
-             <size>
-              <width>0</width>
-              <height>48</height>
-             </size>
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>48</height>
+            </size>
+           </property>
+            <property name="toolTip">
+             <string>Somente leitura para usuários comuns; criação, edição e exclusão de contas são liberadas apenas para admin/master.</string>
             </property>
             <property name="text">
              <string>  Usuários</string>

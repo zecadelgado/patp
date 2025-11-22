@@ -61,6 +61,7 @@ class UsuariosController:
         self._usuarios: List[_UserRecord] = []
         self._setup_table()
         self._connect_signals()
+        self._configure_permissions()
         self.refresh()
 
                                                                           
@@ -97,7 +98,30 @@ class UsuariosController:
         if self.btn_cancelar:
             self.btn_cancelar.clicked.connect(self._handle_cancelar)
 
-                                                                          
+
+    def _configure_permissions(self) -> None:
+        """Desabilita ações restritas para perfis sem privilégio de admin/master."""
+        is_admin = DatabaseManager.has_admin_privileges(self.current_user)
+        restricted_buttons = [
+            self.btn_novo,
+            self.btn_editar,
+            self.btn_excluir,
+            self.btn_salvar,
+            self.btn_cancelar,
+        ]
+
+        for btn in restricted_buttons:
+            if not btn:
+                continue
+            btn.setEnabled(is_admin)
+            if not is_admin:
+                btn.setToolTip(
+                    "Somente administradores ou usuários master podem criar, editar ou excluir contas."
+                )
+            else:
+                btn.setToolTip(None)
+
+
                 
     def refresh(self) -> None:
         self._carregar_usuarios()

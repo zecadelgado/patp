@@ -415,7 +415,7 @@ class NeoBenesysApp:
         has_admin_access = role in {'admin', 'master'}
 
         # Telas restritas apenas para admin/master
-        admin_only_screens = ['usuarios', 'auditoria']
+        admin_only_screens = ['auditoria']
         
         for btn_name, screen_key in button_map.items():
             btn = self.dashboard.findChild(QPushButton, btn_name)
