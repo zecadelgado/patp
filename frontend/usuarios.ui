@@ -41,8 +41,17 @@
       </item>
       <item>
         <layout class="QHBoxLayout" name="searchLayout">
+          <property name="stretch">
+            <string>3,0,0</string>
+          </property>
           <item>
             <widget class="QLineEdit" name="le_search">
+              <property name="sizePolicy">
+                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                </sizepolicy>
+              </property>
               <property name="placeholderText">
                 <string>Buscar por nome/email...</string>
               </property>
@@ -103,6 +112,12 @@
               <string>Ativo</string>
             </property>
           </column>
+          <attribute name="horizontalHeaderStretchLastSection">
+            <bool>true</bool>
+          </attribute>
+          <attribute name="verticalHeaderVisible">
+            <bool>false</bool>
+          </attribute>
         </widget>
       </item>
       <item>

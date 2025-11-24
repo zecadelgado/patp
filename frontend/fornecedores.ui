@@ -211,6 +211,9 @@
               </property>
               <item>
                 <layout class="QFormLayout" name="formLayout">
+                  <property name="fieldGrowthPolicy">
+                    <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                  </property>
                   <property name="horizontalSpacing">
                     <number>20</number>
                   </property>

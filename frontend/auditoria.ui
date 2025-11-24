@@ -125,6 +125,9 @@
               <string>Agendar</string>
             </attribute>
             <layout class="QFormLayout" name="form_agendar">
+              <property name="fieldGrowthPolicy">
+                <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+              </property>
               <property name="horizontalSpacing">
                 <number>20</number>
               </property>
