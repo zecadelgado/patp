@@ -512,7 +512,9 @@ class DatabaseManager:
             last_int = int(last or 0)
         except (TypeError, ValueError):
             last_int = 0
-        return [last_int + i for i in range(1, quantidade + 1)]
+        # Garanta que a sequência mínima comece em 1200
+        base = 1199 if last_int < 1199 else last_int
+        return [base + i for i in range(1, quantidade + 1)]
 
     def create_patrimonio(self, data: Dict[str, Any]) -> int:
         if not data:
@@ -543,21 +545,21 @@ class DatabaseManager:
         if missing:
             raise ValueError(f"Campos obrigatorios ausentes: {', '.join(missing)}")
 
-        ordered_fields: Sequence[str] = (
-            "nome",
-            "descricao",
-            "numero_serie",
-            "valor_compra",
-            "data_aquisicao",
-            "estado_conservacao",
-            "id_categoria",
-            "id_fornecedor",
-            "id_setor_local",
-            "status",
-            "quantidade",
-            "numero_nota",
-            "valor_atual",
-        )
+    ordered_fields: Sequence[str] = (
+        "nome",
+        "descricao",
+        "numero_serie",
+        "valor_compra",
+        "data_aquisicao",
+        "estado_conservacao",
+        "id_categoria",
+        "id_fornecedor",
+        "id_setor_local",
+        "status",
+        "quantidade",
+        "numero_nota",
+        "valor_atual",
+    )
 
         numero_patrimonio_available = "numero_patrimonio" in available_columns
         numero_patrimonio_value = data.get("numero_patrimonio") if numero_patrimonio_available else None
@@ -574,6 +576,11 @@ class DatabaseManager:
                     value = 1
             elif field == "numero_nota":
                 value = data.get("numero_nota") or None
+            elif field == "valor_atual":
+                bruto = data.get("valor_atual")
+                if bruto in (None, ""):
+                    bruto = data.get("valor_compra")
+                value = bruto
             else:
                 value = data.get(field)
             columns.append(field)
@@ -898,6 +905,32 @@ class DatabaseManager:
         finally:
             cursor.close()
 
+    def delete_patrimonio_force(self, patrimonio_id: int) -> bool:
+        """Remove patrimonio e dependencias forçadas (uso exclusivo de master)."""
+        dependents = (
+            "movimentacoes",
+            "depreciacoes",
+            "anexos",
+            "itens_nota_fiscal",
+            "garantias",
+            "baixas",
+            "patrimonios_centro_custo",
+            "manutencoes",
+        )
+        self._ensure_connection()
+        cursor = self.connection.cursor()
+        try:
+            for table in dependents:
+                cursor.execute(f"DELETE FROM {table} WHERE id_patrimonio = %s", (patrimonio_id,))
+            cursor.execute("DELETE FROM patrimonios WHERE id_patrimonio = %s", (patrimonio_id,))
+            self.connection.commit()
+            return cursor.rowcount > 0
+        except mysql.connector.Error:
+            self.connection.rollback()
+            raise
+        finally:
+            cursor.close()
+
                                                                              
     @staticmethod
     def _normalize_user_active(value: Any) -> Optional[bool]:
@@ -1101,17 +1134,7 @@ class DatabaseManager:
             ORDER BY nome_centro
         """
 
-        if search:
-            return self.fetch_all(query, tuple(params) if params else None)
-
-        cache_key = f"centros_custo:list_all:{'all' if include_inativos else 'ativos'}"
-        cached = self.cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        result = self.fetch_all(query, tuple(params) if params else None)
-        self.cache.set(cache_key, result, timeout_seconds=600)  # 10 minutos
-        return result
+        return self.fetch_all(query, tuple(params) if params else None)
 
     def list_setores_locais(self, search=None):
         # Se tem busca, não usar cache
@@ -1295,7 +1318,12 @@ class DatabaseManager:
         except mysql.connector.Error:
             columns = set()
 
-        valor_col = "valor_atual" if "valor_atual" in columns else "valor_compra"
+        # Se existir valor_atual, priorizar, mas sempre caindo para valor_compra quando nulo
+        if "valor_atual" in columns:
+            valor_expr = "COALESCE(p.valor_atual, p.valor_compra, 0)"
+        else:
+            valor_expr = "COALESCE(p.valor_compra, 0)"
+
         quantidade_expr = "COALESCE(p.quantidade, 1)" if "quantidade" in columns else "1"
 
         query = f"""
@@ -1303,7 +1331,7 @@ class DatabaseManager:
                 SUM(CASE WHEN p.status = 'ativo' THEN 1 ELSE 0 END) AS ativos,
                 SUM(CASE WHEN p.status = 'baixado' THEN 1 ELSE 0 END) AS baixados,
                 SUM(CASE WHEN p.status = 'em_manutencao' THEN 1 ELSE 0 END) AS manutencao,
-                COALESCE(SUM(COALESCE({valor_col}, 0) * {quantidade_expr}), 0) AS total_valor
+                COALESCE(SUM({valor_expr} * {quantidade_expr}), 0) AS total_valor
             FROM patrimonios p
         """
         row = self.fetch_one(query)
@@ -1331,6 +1359,10 @@ class DatabaseManager:
             if patrimonio_id:
                 conditions.append("m.id_patrimonio = %s")
                 params.append(patrimonio_id)
+            tipo_manutencao = filters.get("tipo_manutencao")
+            if tipo_manutencao:
+                conditions.append("LOWER(m.tipo_manutencao) = %s")
+                params.append(str(tipo_manutencao).strip().lower())
             status = filters.get("status")
             if status:
                 conditions.append("m.status = %s")
@@ -1343,6 +1375,13 @@ class DatabaseManager:
             if data_fim:
                 conditions.append("m.data_inicio <= %s")
                 params.append(data_fim)
+            texto = filters.get("texto")
+            if texto:
+                like = f"%{texto}%"
+                conditions.append(
+                    "(p.nome LIKE %s OR m.descricao LIKE %s OR m.empresa LIKE %s OR m.responsavel LIKE %s)"
+                )
+                params.extend([like, like, like, like])
         if conditions:
             base_query.append("WHERE " + " AND ".join(conditions))
         base_query.append("ORDER BY m.data_inicio DESC")
@@ -1851,20 +1890,21 @@ class DatabaseManager:
             if acumulado > valor:
                 acumulado = valor
 
-            valor_periodo = depreciacao_mensal
-            if acumulado >= valor:
-                valor_periodo = Decimal("0")
-            elif acumulado + depreciacao_mensal > valor:
-                valor_periodo = valor - acumulado
+        valor_periodo = depreciacao_mensal
+        if acumulado >= valor:
+            valor_periodo = Decimal("0")
+        elif acumulado + depreciacao_mensal > valor:
+            valor_periodo = valor - acumulado
 
-            linhas.append(
-                {
-                    "patrimonio": item.get("nome"),
-                    "categoria": item.get("nome_categoria"),
-                    "competencia": hoje.strftime("%Y-%m"),
-                    "valor_periodo": float(valor_periodo),
-                    "valor_acumulado": float(acumulado),
-                }
+        nome_patrimonio = item.get("nome") or item.get("nome_patrimonio") or "-"
+        linhas.append(
+            {
+                "patrimonio": nome_patrimonio,
+                "categoria": item.get("nome_categoria"),
+                "competencia": hoje.strftime("%Y-%m"),
+                "valor_periodo": float(valor_periodo),
+                "valor_acumulado": float(acumulado),
+            }
             )
 
         return linhas

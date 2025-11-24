@@ -156,15 +156,22 @@ class MovimentacoesController:
             return
         codigo = self.txt_patrimonio.text().strip()
         if not codigo:
-            QMessageBox.information(self.widget, "Movimentações", "Informe o ID do patrimônio.")
+            QMessageBox.information(self.widget, "Movimentações", "Informe o ID ou código do patrimônio.")
             return
         try:
             patrimonio_id = int(codigo)
         except ValueError:
-            QMessageBox.warning(self.widget, "Movimentações", "Informe um ID numérico.")
+            QMessageBox.warning(self.widget, "Movimentações", "Informe um número (ID ou código).")
             return
         try:
             patrimonio = self.db_manager.get_patrimonio(patrimonio_id)
+            if not patrimonio:
+                alt = self.db_manager.fetch_one(
+                    "SELECT id_patrimonio FROM patrimonios WHERE numero_patrimonio = %s",
+                    (patrimonio_id,),
+                )
+                if alt:
+                    patrimonio = self.db_manager.get_patrimonio(int(alt.get("id_patrimonio")))
         except Exception as exc:                                       
             QMessageBox.critical(
                 self.widget,

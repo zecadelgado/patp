@@ -148,7 +148,7 @@ class ManutencaoController:
             )
             return
         for item in patrimonios:
-            nome = item.get("nome")
+            nome = item.get("nome") or item.get("nome_patrimonio")
             patrimonio_id = item.get("id_patrimonio")
             if nome and patrimonio_id is not None:
                 self.cb_patrimonio.addItem(str(nome), int(patrimonio_id))
@@ -165,6 +165,7 @@ class ManutencaoController:
             "Corretiva",
             "Preditiva",
             "Emergencial",
+            "Garantia",
             "Outro"
         ]
         for tipo in tipos:
@@ -175,9 +176,9 @@ class ManutencaoController:
             if index >= 0:
                 self.cb_tipo.setCurrentIndex(index)
 
-    def _load_manutencoes(self) -> None:
+    def _load_manutencoes(self, filters: Optional[Dict[str, object]] = None) -> None:
         try:
-            rows = self.db_manager.list_manutencoes()
+            rows = self.db_manager.list_manutencoes(filters or None)
         except Exception as exc:                                       
             QMessageBox.critical(
                 self.widget,
@@ -445,7 +446,7 @@ class ManutencaoController:
         # Validar tipo de manutenção
         tipo_manutencao = None
         if self.cb_tipo and self.cb_tipo.currentIndex() > 0:
-            tipo_manutencao = self.cb_tipo.currentText().lower()
+            tipo_manutencao = self.cb_tipo.currentText().strip().lower()
         
         if not tipo_manutencao:
             QMessageBox.warning(
@@ -496,6 +497,7 @@ class ManutencaoController:
             record = self._selected_record()
             if record:
                 self._populate_form(record)
+
 
                                                                           
              

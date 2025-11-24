@@ -448,6 +448,9 @@ class PatrimonioController(QWidget):
 
         self.table.resizeColumnsToContents()
         self._connect_table_selection()
+        # Seleciona a primeira linha para habilitar edi��o r�pida
+        if self.table.rowCount() > 0 and not self.table.selectionModel().hasSelection():
+            self.table.selectRow(0)
         self._update_buttons_state()
 
                                                                              
@@ -1047,7 +1050,8 @@ class PatrimonioController(QWidget):
             )
             return
 
-        if dependencies:
+        master_user = DatabaseManager.has_master_privileges(self.current_user)
+        if dependencies and not master_user:
             details = "\n".join(
                 f"• {label}: {count} registro(s) relacionado(s)" for label, count in dependencies.items()
             )
@@ -1058,10 +1062,21 @@ class PatrimonioController(QWidget):
             )
             return
 
+        if dependencies and master_user:
+            details = "\n".join(
+                f"• {label}: {count} registro(s) relacionado(s)" for label, count in dependencies.items()
+            )
+            confirm_msg = (
+                f"O patrimônio '{nome_patrimonio}' possui vínculos:\n{details}\n\n"
+                "Deseja remover mesmo assim? Todos os vínculos serão apagados."
+            )
+        else:
+            confirm_msg = f"Deseja realmente baixar o patrimonio '{nome_patrimonio}' (ID: {id_patrimonio})?"
+
         resposta = QMessageBox.question(
             self.ui,
             "Confirmacao",
-            f"Deseja realmente baixar o patrimonio '{nome_patrimonio}' (ID: {id_patrimonio})?",
+            confirm_msg,
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -1071,7 +1086,11 @@ class PatrimonioController(QWidget):
             return
 
         try:
-            if not self.db_manager.delete_patrimonio(id_patrimonio):
+            if dependencies and master_user:
+                ok = self.db_manager.delete_patrimonio_force(id_patrimonio)
+            else:
+                ok = self.db_manager.delete_patrimonio(id_patrimonio)
+            if not ok:
                 QMessageBox.warning(
                     self.ui,
                     "Baixa",

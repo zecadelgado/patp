@@ -50,7 +50,7 @@
           </item>
           <item row="0" column="1">
             <widget class="QComboBox" name="cb_patrimonio">
-              </widget>
+            </widget>
           </item>
           <item row="1" column="0">
             <widget class="QLabel" name="labelTipo">
@@ -61,16 +61,6 @@
           </item>
           <item row="1" column="1">
             <widget class="QComboBox" name="cb_tipo">
-              <item>
-                <property name="text">
-                  <string>preventiva</string>
-                </property>
-              </item>
-              <item>
-                <property name="text">
-                  <string>corretiva</string>
-                </property>
-              </item>
             </widget>
           </item>
           <item row="2" column="0">
@@ -127,7 +117,7 @@
           </item>
           <item row="5" column="1">
             <widget class="QLineEdit" name="le_empresa">
-              </widget>
+            </widget>
           </item>
           <item row="6" column="0">
             <widget class="QLabel" name="labelDesc">
@@ -138,7 +128,7 @@
           </item>
           <item row="6" column="1">
             <widget class="QPlainTextEdit" name="pte_descricao">
-              </widget>
+            </widget>
           </item>
         </layout>
       </item>
@@ -242,6 +232,6 @@
       </item>
     </layout>
   </widget>
-  <resources />
-  <connections />
+  <resources/>
+  <connections/>
 </ui>
