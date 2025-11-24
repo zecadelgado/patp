@@ -92,7 +92,6 @@ QTimeEdit:focus,
 QPlainTextEdit:focus,
 QTextEdit:focus {
     border: 1px solid #16a34a;
-    box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.15);
 }
 
 QComboBox::drop-down {

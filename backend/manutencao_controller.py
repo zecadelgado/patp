@@ -105,26 +105,21 @@ class ManutencaoController:
                                                                           
                 
     def refresh(self) -> None:
-        self._schema_ready = self.db_manager.manutencao_has_extended_columns()
-        self._set_dependent_fields_enabled(self._schema_ready)
+        schema_ok = self.db_manager.manutencao_has_extended_columns()
+        if not schema_ok and not self._schema_warning_shown:
+            QMessageBox.warning(
+                self.widget,
+                "Manutenções",
+                (
+                    "A tabela 'manutencoes' está incompleta. Execute o script "
+                    "database/migrations_manutencao.sql para habilitar todos os recursos."
+                ),
+            )
+            self._schema_warning_shown = True
 
-        if not self._schema_ready:
-            if not self._schema_warning_shown:
-                QMessageBox.warning(
-                    self.widget,
-                    "Manutenções",
-                    (
-                        "A tabela 'manutencoes' está incompleta. Execute o script "
-                        "database/migrations_manutencao.sql para habilitar todos os recursos."
-                    ),
-                )
-                self._schema_warning_shown = True
-            self._set_edit_mode(False)
-            self._clear_form()
-            if self.table:
-                self.table.setRowCount(0)
-            return
-
+        # Mesmo que falte coluna, mantemos a tela interativa para não bloquear o usuário.
+        self._schema_ready = True
+        self._set_dependent_fields_enabled(True)
         self._populate_patrimonios()
         self._populate_tipos()
         self._load_manutencoes()

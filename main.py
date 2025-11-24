@@ -102,8 +102,9 @@ class NeoBenesysApp:
             QMessageBox.critical(None, "Erro de Conexão", "Não foi possível conectar ao banco de dados.")
             sys.exit(1)
 
+        categoria_map: Dict[str, int] = {}
         try:
-            self.db_manager.ensure_categorias(PatrimonioController.FIXED_CATEGORIES)
+            categoria_map = self.db_manager.ensure_categorias(PatrimonioController.FIXED_CATEGORIES)
         except Exception as exc:
             print(f"[Aviso] Não foi possível garantir as categorias padrão: {exc}")
 
@@ -111,6 +112,11 @@ class NeoBenesysApp:
             self.db_manager.ensure_patrimonio_optional_columns()
         except Exception as exc:
             print(f"[Aviso] Nao foi possivel ajustar as colunas opcionais de patrimonio: {exc}")
+
+        try:
+            self.db_manager.ensure_demo_setores_e_patrimonios(categoria_map)
+        except Exception as exc:
+            print(f"[Aviso] Nao foi possivel carregar dados iniciais de setores/patrimonios: {exc}")
 
         self.login = load_ui("login.ui")
         self.login.setWindowTitle("NeoBenesys - Login")
