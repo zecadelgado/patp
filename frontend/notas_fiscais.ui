@@ -5,16 +5,14 @@
     <property name="windowModality">
       <enum>Qt::WindowModality::WindowModal</enum>
     </property>
-    <property name="geometry">
-      <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>1000</width>
-        <height>811</height>
-      </rect>
-    </property>
     <property name="windowTitle">
       <string>Notas Fiscais</string>
+    </property>
+    <property name="font">
+      <font>
+        <family>Segoe UI</family>
+        <pointsize>10</pointsize>
+      </font>
     </property>
     <property name="windowOpacity">
       <double>100.000000000000000</double>
@@ -27,19 +25,16 @@
         <number>20</number>
       </property>
       <property name="leftMargin">
-        <number>24</number>
+        <number>20</number>
       </property>
       <property name="topMargin">
-        <number>24</number>
+        <number>20</number>
       </property>
       <property name="rightMargin">
-        <number>24</number>
+        <number>20</number>
       </property>
       <property name="bottomMargin">
-        <number>24</number>
-      </property>
-      <property name="sizeConstraint">
-        <enum>QLayout::SizeConstraint::SetMaximumSize</enum>
+        <number>20</number>
       </property>
       <item>
         <widget class="QLabel" name="lbl_title">
@@ -258,6 +253,9 @@
           <property name="spacing">
             <number>10</number>
           </property>
+          <property name="stretch">
+            <string>0,0,0,1,0</string>
+          </property>
           <property name="leftMargin">
             <number>0</number>
           </property>
@@ -346,24 +344,17 @@
             </widget>
           </item>
           <item>
-            <spacer name="horizontalSpacer">
-              <property name="orientation">
-                <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-                <size>
-                  <width>40</width>
-                  <height>20</height>
-                </size>
-              </property>
-            </spacer>
-          </item>
-          <item>
             <widget class="QLineEdit" name="txt_buscar">
+              <property name="sizePolicy">
+                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                </sizepolicy>
+              </property>
               <property name="minimumSize">
                 <size>
-                  <width>250</width>
-                  <height>40</height>
+                  <width>0</width>
+                  <height>35</height>
                 </size>
               </property>
               <property name="placeholderText">
@@ -399,10 +390,38 @@
         </layout>
       </item>
       <item>
-        <widget class="QTabWidget" name="tab_widget">
-          <property name="currentIndex">
-            <number>0</number>
+        <widget class="QScrollArea" name="scrollArea">
+          <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+            </sizepolicy>
           </property>
+          <property name="widgetResizable">
+            <bool>true</bool>
+          </property>
+          <widget class="QWidget" name="scrollAreaWidgetContents">
+            <layout class="QVBoxLayout" name="verticalLayout_scroll_area">
+              <property name="spacing">
+                <number>0</number>
+              </property>
+              <property name="leftMargin">
+                <number>0</number>
+              </property>
+              <property name="topMargin">
+                <number>0</number>
+              </property>
+              <property name="rightMargin">
+                <number>0</number>
+              </property>
+              <property name="bottomMargin">
+                <number>0</number>
+              </property>
+              <item>
+                <widget class="QTabWidget" name="tab_widget">
+                  <property name="currentIndex">
+                    <number>0</number>
+                  </property>
           <widget class="QWidget" name="tab_dados_nf">
             <attribute name="title">
               <string>Dados da Nota Fiscal</string>
@@ -425,23 +444,26 @@
               </property>
               <item>
                 <layout class="QFormLayout" name="formLayout">
+                  <property name="fieldGrowthPolicy">
+                    <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                  </property>
                   <property name="horizontalSpacing">
                     <number>20</number>
                   </property>
                   <property name="verticalSpacing">
-                    <number>15</number>
+                    <number>20</number>
                   </property>
                   <property name="leftMargin">
-                    <number>0</number>
+                    <number>20</number>
                   </property>
                   <property name="topMargin">
-                    <number>0</number>
+                    <number>20</number>
                   </property>
                   <property name="rightMargin">
-                    <number>0</number>
+                    <number>20</number>
                   </property>
                   <property name="bottomMargin">
-                    <number>0</number>
+                    <number>20</number>
                   </property>
                   <item row="0" column="0">
                     <widget class="QLabel" name="lbl_numero">
@@ -461,6 +483,18 @@
                   </item>
                   <item row="0" column="1">
                     <widget class="QLineEdit" name="txt_numero">
+                      <property name="sizePolicy">
+                        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                          <horstretch>0</horstretch>
+                          <verstretch>0</verstretch>
+                        </sizepolicy>
+                      </property>
+                      <property name="minimumSize">
+                        <size>
+                          <width>0</width>
+                          <height>30</height>
+                        </size>
+                      </property>
                       <property name="placeholderText">
                         <string>Número da nota fiscal</string>
                       </property>
@@ -484,6 +518,18 @@
                   </item>
                   <item row="1" column="1">
                     <widget class="QLineEdit" name="txt_serie">
+                      <property name="sizePolicy">
+                        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                          <horstretch>0</horstretch>
+                          <verstretch>0</verstretch>
+                        </sizepolicy>
+                      </property>
+                      <property name="minimumSize">
+                        <size>
+                          <width>0</width>
+                          <height>30</height>
+                        </size>
+                      </property>
                       <property name="placeholderText">
                         <string>Série da nota fiscal</string>
                       </property>
@@ -507,6 +553,18 @@
                   </item>
                   <item row="2" column="1">
                     <widget class="QLineEdit" name="txt_chave">
+                      <property name="sizePolicy">
+                        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                          <horstretch>0</horstretch>
+                          <verstretch>0</verstretch>
+                        </sizepolicy>
+                      </property>
+                      <property name="minimumSize">
+                        <size>
+                          <width>0</width>
+                          <height>30</height>
+                        </size>
+                      </property>
                       <property name="maxLength">
                         <number>44</number>
                       </property>
@@ -533,6 +591,12 @@
                   </item>
                   <item row="3" column="1">
                     <widget class="QComboBox" name="cmb_fornecedor">
+                      <property name="sizePolicy">
+                        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                          <horstretch>0</horstretch>
+                          <verstretch>0</verstretch>
+                        </sizepolicy>
+                      </property>
                       <property name="minimumSize">
                         <size>
                           <width>0</width>
@@ -559,6 +623,12 @@
                   </item>
                   <item row="4" column="1">
                     <widget class="QDateEdit" name="date_emissao">
+                      <property name="sizePolicy">
+                        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                          <horstretch>0</horstretch>
+                          <verstretch>0</verstretch>
+                        </sizepolicy>
+                      </property>
                       <property name="minimumSize">
                         <size>
                           <width>0</width>
@@ -591,6 +661,12 @@
                   </item>
                   <item row="5" column="1">
                     <widget class="QDoubleSpinBox" name="spin_valor_total">
+                      <property name="sizePolicy">
+                        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                          <horstretch>0</horstretch>
+                          <verstretch>0</verstretch>
+                        </sizepolicy>
+                      </property>
                       <property name="minimumSize">
                         <size>
                           <width>0</width>
@@ -623,6 +699,18 @@
                   </item>
                   <item row="6" column="1">
                     <widget class="QComboBox" name="cmb_centro_custo">
+                      <property name="sizePolicy">
+                        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                          <horstretch>0</horstretch>
+                          <verstretch>0</verstretch>
+                        </sizepolicy>
+                      </property>
+                      <property name="minimumSize">
+                        <size>
+                          <width>0</width>
+                          <height>30</height>
+                        </size>
+                      </property>
                       <property name="minimumSize">
                         <size>
                           <width>0</width>
@@ -649,12 +737,13 @@
                   </item>
                   <item row="7" column="1">
                     <widget class="QTextEdit" name="txt_observacoes">
-                      <property name="maximumSize">
-                        <size>
-                          <width>16777215</width>
-                          <height>100</height>
-                        </size>
+                      <property name="sizePolicy">
+                        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                          <horstretch>0</horstretch>
+                          <verstretch>0</verstretch>
+                        </sizepolicy>
                       </property>
+                      
                       <property name="placeholderText">
                         <string>Observações adicionais sobre a nota fiscal</string>
                       </property>
@@ -732,6 +821,18 @@
                         </item>
                         <item>
                           <widget class="QLineEdit" name="txt_anexo">
+                            <property name="sizePolicy">
+                              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                                <horstretch>0</horstretch>
+                                <verstretch>0</verstretch>
+                              </sizepolicy>
+                            </property>
+                            <property name="minimumSize">
+                              <size>
+                                <width>0</width>
+                                <height>30</height>
+                              </size>
+                            </property>
                             <property name="readOnly">
                               <bool>true</bool>
                             </property>
@@ -926,11 +1027,14 @@
                     <enum>QFrame::Shadow::Raised</enum>
                   </property>
                   <layout class="QFormLayout" name="formLayout_2">
+                    <property name="fieldGrowthPolicy">
+                      <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                    </property>
                     <property name="horizontalSpacing">
                       <number>20</number>
                     </property>
                     <property name="verticalSpacing">
-                      <number>15</number>
+                      <number>20</number>
                     </property>
                     <property name="leftMargin">
                       <number>20</number>
@@ -962,6 +1066,18 @@
                     </item>
                     <item row="0" column="1">
                       <widget class="QLineEdit" name="txt_item_descricao">
+                        <property name="sizePolicy">
+                          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                          </sizepolicy>
+                        </property>
+                        <property name="minimumSize">
+                          <size>
+                            <width>0</width>
+                            <height>30</height>
+                          </size>
+                        </property>
                         <property name="placeholderText">
                           <string>Descrição do item</string>
                         </property>
@@ -985,6 +1101,18 @@
                     </item>
                     <item row="1" column="1">
                       <widget class="QDoubleSpinBox" name="spin_item_valor">
+                        <property name="sizePolicy">
+                          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                          </sizepolicy>
+                        </property>
+                        <property name="minimumSize">
+                          <size>
+                            <width>0</width>
+                            <height>30</height>
+                          </size>
+                        </property>
                         <property name="prefix">
                           <string>R$ </string>
                         </property>
@@ -1011,6 +1139,18 @@
                     </item>
                     <item row="2" column="1">
                       <widget class="QSpinBox" name="spin_item_quantidade">
+                        <property name="sizePolicy">
+                          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                          </sizepolicy>
+                        </property>
+                        <property name="minimumSize">
+                          <size>
+                            <width>0</width>
+                            <height>30</height>
+                          </size>
+                        </property>
                         <property name="minimum">
                           <number>1</number>
                         </property>
@@ -1037,6 +1177,18 @@
                     </item>
                     <item row="3" column="1">
                       <widget class="QLineEdit" name="txt_item_ncm">
+                        <property name="sizePolicy">
+                          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                          </sizepolicy>
+                        </property>
+                        <property name="minimumSize">
+                          <size>
+                            <width>0</width>
+                            <height>30</height>
+                          </size>
+                        </property>
                         <property name="placeholderText">
                           <string>Código NCM</string>
                         </property>
@@ -1060,6 +1212,18 @@
                     </item>
                     <item row="4" column="1">
                       <widget class="QLineEdit" name="txt_item_cfop">
+                        <property name="sizePolicy">
+                          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                          </sizepolicy>
+                        </property>
+                        <property name="minimumSize">
+                          <size>
+                            <width>0</width>
+                            <height>30</height>
+                          </size>
+                        </property>
                         <property name="placeholderText">
                           <string>Código CFOP</string>
                         </property>
@@ -1113,8 +1277,12 @@
           </widget>
         </widget>
       </item>
-    </layout>
-  </widget>
+     </layout>
+    </widget>
+   </widget>
+  </item>
+ </layout>
+</widget>
   <tabstops>
     <tabstop>btn_novo</tabstop>
     <tabstop>btn_salvar</tabstop>
