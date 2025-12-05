@@ -19,7 +19,7 @@ from PySide6.QtCore import QFile, QFileInfo, QTimer, QDate, QDateTime
 from PySide6.QtGui import QBrush, QColor, QFont, QTextCharFormat
 from frontend import resources_rc
 
-                                                                              
+                                                             
 sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
 
 from database_manager import DatabaseManager
@@ -102,9 +102,8 @@ class NeoBenesysApp:
             QMessageBox.critical(None, "Erro de Conexão", "Não foi possível conectar ao banco de dados.")
             sys.exit(1)
 
-        categoria_map: Dict[str, int] = {}
         try:
-            categoria_map = self.db_manager.ensure_categorias(PatrimonioController.FIXED_CATEGORIES)
+            self.db_manager.ensure_categorias(PatrimonioController.FIXED_CATEGORIES)
         except Exception as exc:
             print(f"[Aviso] Não foi possível garantir as categorias padrão: {exc}")
 
@@ -112,11 +111,6 @@ class NeoBenesysApp:
             self.db_manager.ensure_patrimonio_optional_columns()
         except Exception as exc:
             print(f"[Aviso] Nao foi possivel ajustar as colunas opcionais de patrimonio: {exc}")
-
-        try:
-            self.db_manager.ensure_demo_setores_e_patrimonios(categoria_map)
-        except Exception as exc:
-            print(f"[Aviso] Nao foi possivel carregar dados iniciais de setores/patrimonios: {exc}")
 
         self.login = load_ui("login.ui")
         self.login.setWindowTitle("NeoBenesys - Login")
@@ -221,18 +215,14 @@ class NeoBenesysApp:
             QMessageBox.warning(self.recuperar_dialog, "Recuperação de senha", mensagem)
             return
 
-        sucesso, msg, token = self.db_manager.create_password_reset_token(email)
+        sucesso, msg = self.db_manager.create_password_reset_token(email)
         if sucesso:
-            QMessageBox.information(
-                self.recuperar_dialog,
-                "Recuperação de senha",
-                f"{msg}\n\nToken: {token}",
-            )
+            QMessageBox.information(self.recuperar_dialog, "Recuperacao de senha", msg)
             self.recuperar_dialog.close()
             self.recuperar_dialog = None
-            self.abrir_redefinir_senha_dialog(token)
+            self.abrir_redefinir_senha_dialog()
         else:
-            QMessageBox.warning(self.recuperar_dialog, "Recuperação de senha", msg)
+            QMessageBox.warning(self.recuperar_dialog, "Recuperacao de senha", msg)
 
     def abrir_redefinir_senha_dialog(self, token: str = ""):
         if self.recuperar_dialog:
@@ -421,7 +411,7 @@ class NeoBenesysApp:
         has_admin_access = role in {'admin', 'master'}
 
         # Telas restritas apenas para admin/master
-        admin_only_screens = ['auditoria']
+        admin_only_screens = ['auditoria', 'usuarios']
         
         for btn_name, screen_key in button_map.items():
             btn = self.dashboard.findChild(QPushButton, btn_name)
@@ -438,6 +428,9 @@ class NeoBenesysApp:
                 continue
 
             def navigate(_, key=screen_key):
+                if key in admin_only_screens and not has_admin_access:
+                    QMessageBox.warning(self.dashboard, "Acesso restrito", "Apenas administradores ou usuarios master podem acessar esta tela.")
+                    return
                 target_widget = self.widgets.get(key)
                 if target_widget:
                     stacked.setCurrentWidget(target_widget)

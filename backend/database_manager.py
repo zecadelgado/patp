@@ -4,12 +4,15 @@ import json
 import mimetypes
 import os
 import secrets
+import smtplib
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-import mysql.connector # ignore
+from email.message import EmailMessage
+
+import mysql.connector
 from mysql.connector import errorcode
 import bcrypt
 
@@ -218,6 +221,7 @@ class DatabaseManager:
             try:
                 self._manutencao_columns = set(self.get_table_columns("manutencoes"))
             except mysql.connector.Error:
+                # Em caso de falha na leitura do schema, assumir o conjunto completo para não bloquear a UI
                 self._manutencao_columns = {
                     "id_patrimonio",
                     "data_inicio",
@@ -226,6 +230,8 @@ class DatabaseManager:
                     "custo",
                     "responsavel",
                     "status",
+                    "tipo_manutencao",
+                    "empresa",
                 }
         return self._manutencao_columns
 
@@ -363,21 +369,70 @@ class DatabaseManager:
             (datetime.utcnow(), token_id),
         )
 
+    def _send_password_reset_email(
+        self,
+        recipient: str,
+        token: str,
+        expires_at: datetime,
+        user_name: str = "",
+        expiration_minutes: int = 30,
+    ) -> Tuple[bool, str]:
+        smtp_user = os.getenv("SMTP_USER", "neobenesys.sup@gmail.com")
+        smtp_password = os.getenv("SMTP_PASSWORD", "sskx wqpc hlrg ddfg")
+        if smtp_password:
+            smtp_password = smtp_password.replace(" ", "")
+        smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
+        try:
+            smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        except (TypeError, ValueError):
+            smtp_port = 587
+
+        if not smtp_user or not smtp_password:
+            return False, "Configuracao de e-mail ausente."
+
+        subject = "Recuperacao de senha - NeoBenesys"
+        expires_info = expires_at.strftime("%d/%m/%Y %H:%M UTC")
+        saudacao = f"Ola, {user_name}!" if user_name else "Ola!"
+        body = (
+            f"{saudacao}\n\n"
+            "Recebemos um pedido para redefinir a sua senha.\n"
+            f"Use o token abaixo para continuar (expira em {expiration_minutes} minutos, ate {expires_info}):\n\n"
+            f"{token}\n\n"
+            "Caso nao tenha solicitado, ignore este e-mail."
+        )
+
+        message = EmailMessage()
+        message["Subject"] = subject
+        message["From"] = smtp_user
+        message["To"] = recipient
+        message.set_content(body)
+
+        try:
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as server:
+                server.starttls()
+                server.login(smtp_user, smtp_password)
+                server.send_message(message)
+            return True, ""
+        except Exception as exc:
+            print(f"[Erro] Falha ao enviar e-mail de recuperacao: {exc}")
+            return False, "Nao foi possivel enviar o e-mail de recuperacao. Tente novamente em instantes."
+
+
     def create_password_reset_token(
         self, email: str, expiration_minutes: int = 30
-    ) -> Tuple[bool, str, Optional[str]]:
+    ) -> Tuple[bool, str]:
         self._ensure_password_reset_table()
         user = self.get_user_by_email(email)
         if not user:
-            return False, "Usuário não encontrado ou inativo.", None
+            return False, "Usuario nao encontrado ou inativo."
 
         if "ativo" in user and not user.get("ativo"):
-            return False, "Usuário não encontrado ou inativo.", None
+            return False, "Usuario nao encontrado ou inativo."
 
         try:
             user_id = int(user.get("id_usuario"))
         except (TypeError, ValueError):
-            return False, "Usuário inválido.", None
+            return False, "Usuario invalido."
 
         self._deactivate_password_reset_tokens(user_id)
 
@@ -391,11 +446,20 @@ class DatabaseManager:
         )
 
         if not inserted:
-            return False, "Não foi possível gerar um token de recuperação.", None
+            return False, "Nao foi possivel gerar um token de recuperacao."
 
-        return True, (
-            "Token de recuperação criado com sucesso. Caso não receba um e-mail, utilize o código exibido para redefinir sua senha."
-        ), token
+        enviado, msg_erro_email = self._send_password_reset_email(
+            recipient=email,
+            token=token,
+            expires_at=expires_at,
+            user_name=user.get("nome") or "",
+            expiration_minutes=expiration_minutes,
+        )
+        if not enviado:
+            self._deactivate_password_reset_tokens(user_id)
+            return False, msg_erro_email
+
+        return True, "Enviamos um e-mail com o token para redefinir a senha. Verifique a caixa de entrada e o spam."
 
     def _match_reset_token(self, token: str) -> Tuple[Optional[dict], Optional[str]]:
         self._ensure_password_reset_table()
@@ -1136,11 +1200,40 @@ class DatabaseManager:
 
         return self.fetch_all(query, tuple(params) if params else None)
 
+    def _get_setores_locais_columns(self) -> Set[str]:
+        try:
+            return set(self.get_table_columns("setores_locais"))
+        except mysql.connector.Error:
+            return {
+                "id_setor_local",
+                "nome_setor_local",
+                "localizacao",
+                "descricao",
+                "responsavel",
+                "capacidade",
+                "andar",
+            }
+
     def list_setores_locais(self, search=None):
+        cols = self._get_setores_locais_columns()
+        campos = ", ".join(
+            col
+            for col in (
+                "id_setor_local",
+                "nome_setor_local",
+                "localizacao",
+                "descricao",
+                "responsavel",
+                "capacidade",
+                "andar",
+            )
+            if col in cols
+        )
+
         # Se tem busca, não usar cache
         if search:
-            query = """
-                SELECT id_setor_local, nome_setor_local, localizacao, descricao
+            query = f"""
+                SELECT {campos}
                 FROM setores_locais
                 WHERE nome_setor_local LIKE %s
                 ORDER BY nome_setor_local
@@ -1148,205 +1241,20 @@ class DatabaseManager:
             return self.fetch_all(query, (f"%{search}%",))
         
         # Tentar obter do cache
-        cache_key = 'setores_locais:list_all'
+        cache_key = "setores_locais:list_all"
         cached = self.cache.get(cache_key)
         if cached is not None:
             return cached
         
         # Buscar do banco e cachear
-        query = """
-            SELECT id_setor_local, nome_setor_local, localizacao, descricao
+        query = f"""
+            SELECT {campos}
             FROM setores_locais
             ORDER BY nome_setor_local
         """
         result = self.fetch_all(query, None)
         self.cache.set(cache_key, result, timeout_seconds=600)  # 10 minutos
         return result
-
-    def ensure_demo_setores_locais(self) -> Dict[str, int]:
-        """Garante alguns setores básicos para que a aplicação tenha dados mínimos nas telas."""
-        try:
-            allowed = set(self.get_table_columns("setores_locais"))
-        except mysql.connector.Error:
-            return {}
-
-        existentes = self.fetch_all(
-            "SELECT id_setor_local, nome_setor_local FROM setores_locais"
-        )
-        mapping: Dict[str, int] = {}
-        vistos: Dict[str, int] = {}
-        for row in existentes:
-            nome = (row.get("nome_setor_local") or "").strip()
-            setor_id = row.get("id_setor_local")
-            if not nome or setor_id is None:
-                continue
-            try:
-                setor_id_int = int(setor_id)
-            except (TypeError, ValueError):
-                continue
-            mapping[nome] = setor_id_int
-            vistos[nome.lower()] = setor_id_int
-
-        seeds = [
-            {"nome_setor_local": "Administrativo", "localizacao": "Bloco A", "descricao": "Gestão e RH"},
-            {"nome_setor_local": "Operações", "localizacao": "Bloco B", "descricao": "Operação e estoque"},
-            {"nome_setor_local": "Tecnologia", "localizacao": "Bloco C", "descricao": "Infra e suporte"},
-            {"nome_setor_local": "Financeiro", "localizacao": "Bloco D", "descricao": "Controladoria e compras"},
-        ]
-
-        created = False
-        for seed in seeds:
-            nome = seed.get("nome_setor_local") or ""
-            if nome.lower() in vistos:
-                continue
-            payload = {k: v for k, v in seed.items() if k in allowed}
-            if not payload:
-                continue
-
-            self._ensure_connection()
-            cursor = self.connection.cursor()
-            try:
-                columns = ", ".join(f"`{key}`" for key in payload.keys())
-                placeholders = ", ".join(["%s"] * len(payload))
-                cursor.execute(
-                    f"INSERT INTO setores_locais ({columns}) VALUES ({placeholders})",
-                    tuple(payload.values()),
-                )
-                self.connection.commit()
-                new_id = int(cursor.lastrowid)
-                mapping[nome] = new_id
-                vistos[nome.lower()] = new_id
-                created = True
-            except mysql.connector.Error as err:
-                self.connection.rollback()
-                missing_errs = {errorcode.ER_NO_SUCH_TABLE, errorcode.ER_BAD_TABLE_ERROR}
-                if err.errno in missing_errs:
-                    break
-                if err.errno == errorcode.ER_DUP_ENTRY:
-                    continue
-                raise
-            finally:
-                cursor.close()
-
-        if created:
-            self.cache.invalidate("setores_locais:list_all")
-
-        return mapping
-
-    def _count_patrimonios_por_setor(self, setor_id: int) -> int:
-        try:
-            row = self.fetch_one(
-                "SELECT COUNT(*) AS total FROM patrimonios WHERE id_setor_local = %s",
-                (setor_id,),
-            )
-        except mysql.connector.Error:
-            return 0
-        try:
-            return int((row or {}).get("total", 0))
-        except (TypeError, ValueError):
-            return 0
-
-    def _patrimonio_exists_in_setor(self, nome: str, setor_id: int) -> bool:
-        try:
-            row = self.fetch_one(
-                "SELECT id_patrimonio FROM patrimonios WHERE LOWER(nome) = LOWER(%s) AND id_setor_local = %s LIMIT 1",
-                (nome, setor_id),
-            )
-            return bool(row)
-        except mysql.connector.Error:
-            return False
-
-    def ensure_demo_patrimonios_por_setor(
-        self,
-        setores: Dict[str, int],
-        categorias: Optional[Dict[str, int]] = None,
-    ) -> None:
-        """Cria ao menos um item por setor vazio para a demonstração."""
-        if not setores:
-            return
-        try:
-            self.get_table_columns("patrimonios")
-        except mysql.connector.Error:
-            return
-
-        categoria_map = categorias or {}
-        if not categoria_map:
-            categoria_map = self.ensure_categorias(("Eletronico", "Imobilizado"))
-        categoria_padrao = (
-            categoria_map.get("Eletronico")
-            or categoria_map.get("Imobilizado")
-            or next(iter(categoria_map.values()), None)
-        )
-        if categoria_padrao is None:
-            return
-
-        normalized_setores = {nome.lower(): setor_id for nome, setor_id in setores.items()}
-        hoje = date.today()
-        base_itens = {
-            "administrativo": [
-                {"nome": "Cadeira Adm", "descricao": "Cadeira ergonômica", "valor": 950.0, "quantidade": 2},
-                {"nome": "Mesa Reuniao Adm", "descricao": "Mesa para reuniões rápidas", "valor": 1800.0},
-                {"nome": "Notebook Administrativo", "descricao": "Uso em rotinas de escritorio", "valor": 4200.0},
-                {"nome": "TV Sala Adm", "descricao": "Apresentacoes e comunicados", "valor": 3200.0},
-            ],
-            "operações": [
-                {"nome": "Cadeira Operacoes", "descricao": "Cadeira operacional", "valor": 820.0, "quantidade": 2},
-                {"nome": "Mesa Operacional", "descricao": "Mesa de apoio para separacao", "valor": 1350.0},
-                {"nome": "Coletor de Dados", "descricao": "Inventario e conferencia", "valor": 2800.0},
-                {"nome": "Empilhadeira Eletrica", "descricao": "Movimentacao interna de cargas", "valor": 18500.0},
-                {"nome": "TV Linha Producao", "descricao": "Painel de acompanhamento", "valor": 4100.0},
-            ],
-            "tecnologia": [
-                {"nome": "Cadeira TI", "descricao": "Cadeira ergonomica apoio TI", "valor": 980.0, "quantidade": 2},
-                {"nome": "Mesa Suporte TI", "descricao": "Mesa para bancada de suporte", "valor": 1600.0},
-                {"nome": "Servidor de Arquivos", "descricao": "Backup e compartilhamento interno", "valor": 23000.0},
-                {"nome": "Firewall Corporativo", "descricao": "Seguranca de rede", "valor": 12000.0},
-                {"nome": "Rack 24U", "descricao": "Rack para ativos de rede", "valor": 6800.0},
-                {"nome": "Switch 48p", "descricao": "Switch camada 2 gigabit", "valor": 9200.0},
-                {"nome": "NVR 16 canais", "descricao": "Gravacao CCTV", "valor": 7500.0},
-                {"nome": "TV Sala Suporte", "descricao": "Painel de monitoramento", "valor": 3600.0},
-            ],
-            "financeiro": [
-                {"nome": "Cadeira Financeiro", "descricao": "Cadeira ergonomica", "valor": 940.0, "quantidade": 2},
-                {"nome": "Mesa Financeiro", "descricao": "Mesa workstation", "valor": 1700.0},
-                {"nome": "Estacao Financeiro", "descricao": "Desktop homologado para ERP", "valor": 5200.0},
-                {"nome": "Scanner de Notas", "descricao": "Digitalizacao de documentos fiscais", "valor": 2100.0},
-                {"nome": "TV Dashboard Financeiro", "descricao": "Painel de indicadores", "valor": 3400.0},
-            ],
-        }
-
-        for chave_setor, itens in base_itens.items():
-            setor_id = normalized_setores.get(chave_setor)
-            if not setor_id:
-                continue
-
-            for item in itens:
-                nome_item = item["nome"]
-                if self._patrimonio_exists_in_setor(nome_item, setor_id):
-                    continue
-                dados = {
-                    "nome": nome_item,
-                    "descricao": item.get("descricao"),
-                    "valor_compra": item["valor"],
-                    "valor_atual": item.get("valor"),
-                    "data_aquisicao": item.get("data_aquisicao", hoje),
-                    "id_categoria": item.get("id_categoria", categoria_padrao),
-                    "id_setor_local": setor_id,
-                    "status": "ativo",
-                    "quantidade": item.get("quantidade", 1),
-                    "numero_nota": item.get("numero_nota"),
-                }
-                try:
-                    self.create_patrimonio(dados)
-                except Exception as exc:
-                    print(f"[Aviso] Nao foi possivel criar patrimonio demo '{nome_item}': {exc}")
-                    continue
-
-    def ensure_demo_setores_e_patrimonios(self, categorias: Optional[Dict[str, int]] = None) -> None:
-        setores = self.ensure_demo_setores_locais()
-        if not setores:
-            return
-        self.ensure_demo_patrimonios_por_setor(setores, categorias)
 
     def create_setor_local(self, data: Dict[str, Any]) -> int:
         if not data:
@@ -1373,12 +1281,14 @@ class DatabaseManager:
         try:
             cursor.execute(sql, tuple(payload.values()))
             self.connection.commit()
-            return cursor.lastrowid
+            new_id = cursor.lastrowid
         except mysql.connector.Error:
             self.connection.rollback()
             raise
         finally:
             cursor.close()
+        self.cache.invalidate("setores_locais:list_all")
+        return new_id
 
     def update_setor_local(self, setor_id: int, data: Dict[str, Any]) -> bool:
         if not data:
@@ -1406,11 +1316,15 @@ class DatabaseManager:
         params.append(setor_id)
         sql = f"UPDATE setores_locais SET {', '.join(updates)} WHERE id_setor_local = %s"
         rows = self.execute_query(sql, tuple(params))
+        if rows:
+            self.cache.invalidate("setores_locais:list_all")
         return bool(rows)
 
     def delete_setor_local(self, setor_id: int) -> bool:
         sql = "DELETE FROM setores_locais WHERE id_setor_local = %s"
         rows = self.execute_query(sql, (setor_id,))
+        if rows:
+            self.cache.invalidate("setores_locais:list_all")
         return bool(rows)
 
     def list_patrimonios(self, filters: Optional[Dict[str, Any]] = None):
@@ -1503,51 +1417,31 @@ class DatabaseManager:
         except mysql.connector.Error:
             columns = set()
 
+        # Se existir valor_atual, priorizar, mas sempre caindo para valor_compra quando nulo
+        if "valor_atual" in columns:
+            valor_expr = "COALESCE(p.valor_atual, p.valor_compra, 0)"
+        else:
+            valor_expr = "COALESCE(p.valor_compra, 0)"
+
         quantidade_expr = "COALESCE(p.quantidade, 1)" if "quantidade" in columns else "1"
 
         query = f"""
             SELECT
-                SUM(CASE WHEN LOWER(p.status) = 'ativo' THEN 1 ELSE 0 END) AS ativos,
-                SUM(CASE WHEN LOWER(p.status) = 'baixado' THEN 1 ELSE 0 END) AS baixados,
-                SUM(CASE WHEN LOWER(p.status) = 'em_manutencao' THEN 1 ELSE 0 END) AS manutencao
+                SUM(CASE WHEN p.status = 'ativo' THEN 1 ELSE 0 END) AS ativos,
+                SUM(CASE WHEN p.status = 'baixado' THEN 1 ELSE 0 END) AS baixados,
+                SUM(CASE WHEN p.status = 'em_manutencao' THEN 1 ELSE 0 END) AS manutencao,
+                COALESCE(SUM({valor_expr} * {quantidade_expr}), 0) AS total_valor
             FROM patrimonios p
         """
-        row = self.fetch_one(query) or {}
-        total_valor = self.get_total_valor_patrimonios(columns)
+        row = self.fetch_one(query)
+        if not row:
+            return {"ativos": 0, "baixados": 0, "manutencao": 0, "total_valor": 0.0}
         return {
             "ativos": row.get("ativos", 0) or 0,
             "baixados": row.get("baixados", 0) or 0,
             "manutencao": row.get("manutencao", 0) or 0,
-            "total_valor": total_valor,
+            "total_valor": float(row.get("total_valor") or 0.0),
         }
-
-    def get_total_valor_patrimonios(self, columns: Optional[Iterable[str]] = None) -> float:
-        """
-        Retorna o valor total de todos os patrimônios (valor atual ou de compra) multiplicado pela quantidade.
-        A query é isolada para evitar divergências e forçar a leitura direta da tabela de patrimônios.
-        """
-        try:
-            cols = set(columns) if columns is not None else set(self.get_table_columns("patrimonios"))
-        except mysql.connector.Error:
-            cols = set()
-
-        valor_expr = "COALESCE(p.valor_atual, p.valor_compra, 0)" if "valor_atual" in cols else "COALESCE(p.valor_compra, 0)"
-        quantidade_expr = "COALESCE(p.quantidade, 1)" if "quantidade" in cols else "1"
-
-        row = self.fetch_one(
-            f"""
-            SELECT COALESCE(SUM({valor_expr} * {quantidade_expr}), 0) AS total_valor
-            FROM patrimonios p
-            """
-        )
-        raw_total = (row or {}).get("total_valor", 0)
-        try:
-            return float(raw_total or 0.0)
-        except (TypeError, ValueError):
-            try:
-                return float(Decimal(str(raw_total)))
-            except Exception:
-                return 0.0
 
     def list_manutencoes(self, filters: Optional[Dict[str, Any]] = None):
         base_query = [
@@ -2095,21 +1989,21 @@ class DatabaseManager:
             if acumulado > valor:
                 acumulado = valor
 
-        valor_periodo = depreciacao_mensal
-        if acumulado >= valor:
-            valor_periodo = Decimal("0")
-        elif acumulado + depreciacao_mensal > valor:
-            valor_periodo = valor - acumulado
+            valor_periodo = depreciacao_mensal
+            if acumulado >= valor:
+                valor_periodo = Decimal("0")
+            elif acumulado + depreciacao_mensal > valor:
+                valor_periodo = valor - acumulado
 
-        nome_patrimonio = item.get("nome") or item.get("nome_patrimonio") or "-"
-        linhas.append(
-            {
-                "patrimonio": nome_patrimonio,
-                "categoria": item.get("nome_categoria"),
-                "competencia": hoje.strftime("%Y-%m"),
-                "valor_periodo": float(valor_periodo),
-                "valor_acumulado": float(acumulado),
-            }
+            nome_patrimonio = item.get("nome") or item.get("nome_patrimonio") or "-"
+            linhas.append(
+                {
+                    "patrimonio": nome_patrimonio,
+                    "categoria": item.get("nome_categoria"),
+                    "competencia": hoje.strftime("%Y-%m"),
+                    "valor_periodo": float(valor_periodo),
+                    "valor_acumulado": float(acumulado),
+                }
             )
 
         return linhas

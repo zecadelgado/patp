@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
-    QAbstractItemView,
     QVBoxLayout,
     QWidget,
 )
@@ -70,8 +69,6 @@ class PatrimonioController(QWidget):
         if self.table:
             self.table.setColumnCount(len(self.TABLE_HEADERS))
             self.table.setHorizontalHeaderLabels(self.TABLE_HEADERS)
-            self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-            self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
 
         self.has_valor_atual_column = self._check_valor_atual_column()
         self.has_quantidade_column = False
@@ -875,22 +872,6 @@ class PatrimonioController(QWidget):
             centro_atual_id,
             include_inativos=True,
         )
-
-        btn_novo_fornecedor = QPushButton("+ Novo Fornecedor")
-        btn_novo_fornecedor.setMaximumWidth(150)
-        btn_novo_fornecedor.clicked.connect(lambda: self._abrir_cadastro_rapido_fornecedor(dialog))
-
-        fornecedor_layout = QHBoxLayout()
-        fornecedor_layout.addWidget(self.fornecedor_combo)
-        fornecedor_layout.addWidget(btn_novo_fornecedor)
-
-        btn_nova_nota = QPushButton("+ Nova Nota")
-        btn_nova_nota.setMaximumWidth(150)
-        btn_nova_nota.clicked.connect(lambda: self._abrir_cadastro_rapido_nota(dialog))
-
-        nota_layout = QHBoxLayout()
-        nota_layout.addWidget(self.numero_nota_input)
-        nota_layout.addWidget(btn_nova_nota)
 
         self.quantidade_input = QSpinBox()
         self.quantidade_input.setMinimum(1)

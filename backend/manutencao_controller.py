@@ -105,8 +105,8 @@ class ManutencaoController:
                                                                           
                 
     def refresh(self) -> None:
-        schema_ok = self.db_manager.manutencao_has_extended_columns()
-        if not schema_ok and not self._schema_warning_shown:
+        self._schema_ready = self.db_manager.manutencao_has_extended_columns()
+        if not self._schema_ready and not self._schema_warning_shown:
             QMessageBox.warning(
                 self.widget,
                 "Manutenções",
@@ -116,18 +116,16 @@ class ManutencaoController:
                 ),
             )
             self._schema_warning_shown = True
+        # Manter a tela funcional mesmo que faltem colunas; apenas desabilitar campos dependentes
+        self._set_dependent_fields_enabled(self._schema_ready)
 
-        # Mesmo que falte coluna, mantemos a tela interativa para não bloquear o usuário.
-        self._schema_ready = True
-        self._set_dependent_fields_enabled(True)
         self._populate_patrimonios()
         self._populate_tipos()
         self._load_manutencoes()
-        self._set_edit_mode(False)
         self._clear_form()
+        self._current_id = None
+        self._set_edit_mode(True)
 
-                                                                          
-                  
     def _populate_patrimonios(self) -> None:
         if not self.cb_patrimonio:
             return
@@ -293,11 +291,12 @@ class ManutencaoController:
         
         # Validar custo
         custo = dados.get("custo", 0.0)
-        if custo and not validar_valor_positivo(custo):
+        valido_custo, msg_custo = validar_valor_positivo(custo, "Custo")
+        if not valido_custo:
             QMessageBox.warning(
                 self.widget,
                 "Manutenções",
-                "O custo deve ser um valor positivo."
+                msg_custo
             )
             return
         
@@ -344,7 +343,8 @@ class ManutencaoController:
                                                                           
                   
     def _set_edit_mode(self, enabled: bool) -> None:
-        effective_enabled = enabled and self._schema_ready
+        # Permitir edição mesmo se campos extras estiverem ausentes; os campos dependentes já são tratados separadamente
+        effective_enabled = enabled
         self._edit_mode = effective_enabled
         widgets = [
             self.cb_patrimonio,
@@ -357,11 +357,12 @@ class ManutencaoController:
         ]
         for widget in widgets:
             if widget:
-                widget.setEnabled(effective_enabled)
+                requires_extended = widget in {self.cb_tipo, self.le_empresa}
+                widget.setEnabled(effective_enabled and (self._schema_ready or not requires_extended))
         buttons = [self.btn_novo, self.btn_editar, self.btn_excluir, self.btn_salvar, self.btn_cancelar]
         for button in buttons:
             if button:
-                button.setEnabled(self._schema_ready if button in {self.btn_novo, self.btn_editar, self.btn_salvar, self.btn_cancelar} else True)
+                button.setEnabled(True)
 
     def _set_dependent_fields_enabled(self, enabled: bool) -> None:
         for widget in (self.cb_tipo, self.le_empresa):
@@ -375,7 +376,7 @@ class ManutencaoController:
         if self.cb_tipo:
             self.cb_tipo.setCurrentIndex(0)
         if self.de_inicio:
-            self.de_inicio.setDate(QDate.fromPython(today))
+            self.de_inicio.setDate(self._from_date(today))
         if self.de_fim:
             self.de_fim.setSpecialValueText("")
             self.de_fim.setDate(QDate())
@@ -396,10 +397,10 @@ class ManutencaoController:
             if index >= 0:
                 self.cb_tipo.setCurrentIndex(index)
         if self.de_inicio and record.data_inicio:
-            self.de_inicio.setDate(QDate.fromPython(record.data_inicio))
+            self.de_inicio.setDate(self._from_date(record.data_inicio))
         if self.de_fim:
             if record.data_fim:
-                self.de_fim.setDate(QDate.fromPython(record.data_fim))
+                self.de_fim.setDate(self._from_date(record.data_fim))
             else:
                 self.de_fim.setSpecialValueText("")
                 self.de_fim.setDate(QDate())
@@ -419,7 +420,7 @@ class ManutencaoController:
             QMessageBox.warning(self.widget, "Manutenções", "Selecione um patrimônio válido.")
             return None
 
-        qt_inicio = self.de_inicio.date() if self.de_inicio else QDate.fromPython(datetime.date.today())
+        qt_inicio = self.de_inicio.date() if self.de_inicio else self._from_date(datetime.date.today())
         data_inicio = (
             qt_inicio.toPython() if qt_inicio and qt_inicio.isValid() else datetime.date.today()
         )
@@ -438,16 +439,16 @@ class ManutencaoController:
             )
             return None
 
-        # Validar tipo de manutenção
+        # Validar tipo de manutencao apenas se a coluna existir
         tipo_manutencao = None
         if self.cb_tipo and self.cb_tipo.currentIndex() > 0:
             tipo_manutencao = self.cb_tipo.currentText().strip().lower()
         
-        if not tipo_manutencao:
+        if self._schema_ready and not tipo_manutencao:
             QMessageBox.warning(
                 self.widget,
-                "Manutenções",
-                "Selecione o tipo de manutenção."
+                "Manutencoes",
+                "Selecione o tipo de manutencao."
             )
             return None
         
@@ -503,6 +504,14 @@ class ManutencaoController:
         if isinstance(value, datetime.date):
             return value
         return None
+
+    @staticmethod
+    def _from_date(value: Optional[datetime.date]) -> QDate:
+        if isinstance(value, datetime.datetime):
+            value = value.date()
+        if isinstance(value, datetime.date):
+            return QDate(value.year, value.month, value.day)
+        return QDate()
 
     @staticmethod
     def _to_float(value: object) -> Optional[float]:

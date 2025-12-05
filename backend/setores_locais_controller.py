@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QItemSelectionModel
 from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QListView,
@@ -238,10 +238,10 @@ class SetoresLocaisController:
             if int(registro.get("id_setor_local")) == registro_id:
                 if self.list_view and self.list_view.model().rowCount() > row:
                     index = self.list_view.model().index(row, 0)
-                    self.list_view.selectionModel().select(index, Qt.SelectionFlag.ClearAndSelect)
+                    self.list_view.selectionModel().select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
                 if self.table and self.table.model().rowCount() > row:
                     index = self.table.model().index(row, 0)
-                    self.table.selectionModel().select(index, Qt.SelectionFlag.ClearAndSelect)
+                    self.table.selectionModel().select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
                 self._current_id = registro_id
                 self._popular_formulario(registro)
                 break
